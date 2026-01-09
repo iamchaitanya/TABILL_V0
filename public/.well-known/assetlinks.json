@@ -3,6 +3,7 @@
   "target": {
     "namespace": "android_app",
     "package_name": "app.netlify.tabillz.twa",
-    "sha256_cert_fingerprints": ["54:7D:91:59:83:B7:6E:1D:40:E0:ED:77:9F:54:6B:5B:AB:3E:65:08:6D:2B:1A:C2:AE:55:3D:3B:9C:20:48:C0"]
+    "sha256_cert_fingerprints": ["54:7D:91:59:83:B7:6E:1D:40:E0:ED:77:9F:54:6B:5B:AB:3E:65:08:6D:2B:1A:C2:AE:55:3D:3B:9C:20:48:C0",
+    "FC:1C:0B:02:6A:41:E3:4B:E9:F2:EE:1A:F1:A4:A8:70:4C:00:69:B6:42:82:F2:12:3C:B3:E4:CB:AB:D8:AB:D4"]
   }
 }]
