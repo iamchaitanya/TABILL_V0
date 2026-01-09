@@ -1,0 +1,8 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "app.netlify.tabillz.twa",
+    "sha256_cert_fingerprints": ["54:7D:91:59:83:B7:6E:1D:40:E0:ED:77:9F:54:6B:5B:AB:3E:65:08:6D:2B:1A:C2:AE:55:3D:3B:9C:20:48:C0"]
+  }
+}]
