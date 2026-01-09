@@ -28,11 +28,11 @@ const App = () => {
   });
 
   const [profile, setProfile] = useState<UserProfile>({
-    name: 'Senior Inspector',
-    bio: 'Dedicated to excellence.',
-    homeCurrency: 'INR',
+    name: '',
+    bio: '',
+    homeCurrency: '',
     avatar: null,
-    employeeId: 'EMP-001',
+    employeeId: '',
     mobile: '',
     email: '',
     unit: '',
@@ -42,7 +42,9 @@ const App = () => {
       { id: generateId(), label: 'DMS', value: '' },
       { id: generateId(), label: 'SAS', value: '' },
       { id: generateId(), label: 'DARPAN', value: '' },
-      { id: generateId(), label: 'CONCURRENT', value: '' }
+      { id: generateId(), label: 'CONCURRENT', value: '' },
+      { id: generateId(), label: 'HRMS', value: '' },
+      { id: generateId(), label: 'LEARNING', value: '' }
     ]
   });
 
@@ -90,8 +92,8 @@ const App = () => {
       try { 
         const parsedProfile = JSON.parse(savedProfile);
         
-        // Ensure credentials exist and include new defaults (DARPAN, CONCURRENT)
-        const defaultLabels = ['CBS', 'DMS', 'SAS', 'DARPAN', 'CONCURRENT'];
+        // Ensure credentials exist and include new defaults (DARPAN, CONCURRENT, HRMS, LEARNING)
+        const defaultLabels = ['CBS', 'DMS', 'SAS', 'DARPAN', 'CONCURRENT', 'HRMS', 'LEARNING'];
         if (!parsedProfile.credentials) {
             parsedProfile.credentials = defaultLabels.map(l => ({ id: generateId(), label: l, value: '' }));
         } else {
@@ -326,7 +328,9 @@ const App = () => {
         <div className="max-w-[1600px] mx-auto flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="bg-teal-600 text-white p-2 rounded-xl shadow-lg rotate-3"><svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 002 2h2a2 2 0 002-2" /></svg></div>
-            <div><h1 className="text-xl font-black text-teal-900 dark:text-teal-400 leading-none">IotaBill</h1><p className="text-[10px] text-teal-600 dark:text-teal-500 font-bold uppercase tracking-widest">Logs</p></div>
+            <div>
+              <h1 className="text-xl font-black text-teal-900 dark:text-teal-400 leading-none">TA BILL</h1>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             <button 

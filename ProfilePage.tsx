@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { UserProfile, TourData, CredentialItem } from './types';
 import { generateId } from './utils';
@@ -22,6 +21,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 }) => {
   const [activeView, setActiveView] = useState<'details' | 'passwords'>('details');
   const [isLocked, setIsLocked] = useState(true);
+  const [isDetailsLocked, setIsDetailsLocked] = useState(true);
   const [showPasswords, setShowPasswords] = useState(false);
 
   const updateCredential = (id: string, field: 'label' | 'value', val: string) => {
@@ -70,14 +70,32 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
           {activeView === 'details' ? (
             /* Details Section */
             <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-300">
-              <h3 className="text-xs font-black text-teal-900 dark:text-teal-400 uppercase tracking-widest border-b border-teal-50 dark:border-slate-800 pb-2">Profile Details</h3>
+              <div className="flex items-center justify-between border-b border-teal-50 dark:border-slate-800 pb-2">
+                <h3 className="text-xs font-black text-teal-900 dark:text-teal-400 uppercase tracking-widest">Profile Details</h3>
+                <button 
+                  onClick={() => setIsDetailsLocked(!isDetailsLocked)}
+                  title={isDetailsLocked ? "Unlock to edit" : "Lock to save"}
+                  className={`p-2 rounded-xl transition-all ${isDetailsLocked ? 'bg-slate-100 dark:bg-slate-800 text-slate-400' : 'bg-teal-900 dark:bg-teal-600 text-white shadow-lg'}`}
+                >
+                  {isDetailsLocked ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                    </svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                    </svg>
+                  )}
+                </button>
+              </div>
               
               <div>
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Name</label>
                 <input 
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl text-lg font-black p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors" 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-lg font-black p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
                   value={profile.name} 
-                  onChange={e => setProfile({...profile, name: e.target.value})} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, name: e.target.value})} 
                   placeholder="Enter name"
                 />
               </div>
@@ -85,9 +103,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div>
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Employee ID</label>
                 <input 
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors" 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
                   value={profile.employeeId} 
-                  onChange={e => setProfile({...profile, employeeId: e.target.value})} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, employeeId: e.target.value})} 
                   placeholder="Enter employee ID"
                 />
               </div>
@@ -95,9 +114,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div>
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Mobile</label>
                 <input 
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors" 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
                   value={profile.mobile} 
-                  onChange={e => setProfile({...profile, mobile: e.target.value})} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, mobile: e.target.value})} 
                   placeholder="Enter mobile"
                 />
               </div>
@@ -106,9 +126,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Mail</label>
                 <input 
                   type="email"
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors" 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
                   value={profile.email} 
-                  onChange={e => setProfile({...profile, email: e.target.value})} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, email: e.target.value})} 
                   placeholder="Enter email"
                 />
               </div>
@@ -116,9 +137,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div>
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Unit</label>
                 <input 
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors" 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
                   value={profile.unit} 
-                  onChange={e => setProfile({...profile, unit: e.target.value})} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, unit: e.target.value})} 
                   placeholder="Enter unit"
                 />
               </div>
@@ -126,9 +148,10 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
               <div>
                 <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">ZI</label>
                 <input 
-                  className="w-full bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700 rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors" 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
                   value={profile.zi} 
-                  onChange={e => setProfile({...profile, zi: e.target.value})} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, zi: e.target.value})} 
                   placeholder="Enter ZI"
                 />
               </div>
