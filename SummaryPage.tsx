@@ -827,9 +827,6 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
             </div>
           )}
         </div>
-
-        {/* Buttons at bottom */}
-    // ... existing code ...
         {/* Buttons at bottom */}
         <div className="pt-8 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-3 w-full justify-center no-print">
           <button 
