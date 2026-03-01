@@ -110,12 +110,20 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         const type = (entry.inspectionType || '').trim();
 
         if (currentSegment && 
-            currentSegment.branch === branchName && 
-            currentSegment.dpCode === dpCode &&
-            currentSegment.inspectionType === type &&
+            currentSegment.branch === branchName &&
             isConsecutive(currentSegment.endDate, entry.date)) {
           currentSegment.endDate = entry.date;
           currentSegment.dates.push(entry.date);
+
+          // Keep optional metadata stable across a continuous duty stretch.
+          // This avoids splitting one stretch when DP code or inspection type
+          // was updated after the first saved day.
+          if (!currentSegment.dpCode && dpCode) {
+            currentSegment.dpCode = dpCode;
+          }
+          if (!currentSegment.inspectionType && type) {
+            currentSegment.inspectionType = type;
+          }
         } else {
           if (currentSegment) {
             segments.push(currentSegment);
