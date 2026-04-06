@@ -179,6 +179,7 @@ const App = () => {
 
       if (isBranchEmpty || isTypeEmpty) {
         setAttemptedSaveIds(prev => new Set(prev).add(id));
+        showAlert('please fill required fields');
         setTimeout(() => {
           const entryEl = document.getElementById(`entry-card-${id}`);
           if (entryEl) {
