@@ -2,6 +2,8 @@
 import React, { useMemo, useState } from 'react';
 import { formatCurrency, isHolidayStr, MONTHS } from './utils';
 import { InspectionEntry, UserProfile } from './types';
+import ExcelJS from 'exceljs';
+import { saveAs } from 'file-saver';
 
 interface SummaryPageProps {
   selectedMonthLabel: string;
@@ -254,6 +256,145 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
   const grandTotalDays = useMemo(() => {
     return manDaysTotal + leaveTotal + holidayTotal;
   }, [manDaysTotal, leaveTotal, holidayTotal]);
+
+  const downloadExcel = async () => {
+    const resp = await fetch('/Template.xlsx');
+    const arrayBuf = await resp.arrayBuffer();
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(arrayBuf);
+
+    const ws1 = wb.getWorksheet('Sheet1');
+    const ws2 = wb.getWorksheet('Sheet2');
+    const ws3 = wb.getWorksheet('Sheet3');
+
+    const setCell = (ws: ExcelJS.Worksheet, r: number, c: number, v: any, upper: boolean = true) => {
+      const cell = ws.getCell(r, c);
+      const target = (cell as any).master || cell; // write to top-left if merged
+      if (v === undefined || v === null || v === '') {
+        target.value = '-';
+      } else {
+        const val = upper && typeof v === 'string' ? v.toUpperCase() : v;
+        target.value = val;
+      }
+    };
+    const toUpper = (v: any) => (v === undefined || v === null || v === '' ? '-' : String(v).toUpperCase());
+
+    // Sheet1 header
+    setCell(ws1, 7, 4, profile.name);
+    setCell(ws1, 8, 4, profile.employeeId);
+    setCell(ws1, 22, 17, selectedMonthLabel, false);
+    setCell(ws1, 22, 22, reportTotals.total, false);
+
+    // Duty rows (uppercase strings)
+    for (let r = 30; r <= 41; r++) [2,3,9,11,16,19,22].forEach(c => setCell(ws1, r, c, null));
+    branchSummary.forEach((seg, idx) => {
+      const r = 30 + idx;
+      setCell(ws1, r, 2, idx + 1, false);
+      setCell(ws1, r, 3, seg.branch, true);
+      setCell(ws1, r, 9, seg.dpCode || '-', true);
+      setCell(ws1, r, 11, seg.inspectionType || '-', true);
+      setCell(ws1, r, 16, seg.fromDate || '-', false);
+      setCell(ws1, r, 19, seg.toDate || '-', false);
+      setCell(ws1, r, 22, seg.branch || '-', true);
+    });
+
+    // Mandays
+    for (let r = 48; r <= 59; r++) [2,3,9,11,14,17,19,21].forEach(c => setCell(ws1, r, c, null));
+    branchSummary.forEach((seg, idx) => {
+      const r = 48 + idx;
+      setCell(ws1, r, 2, idx + 1, false);
+      setCell(ws1, r, 3, seg.branch, true);
+      setCell(ws1, r, 9, seg.dpCode || '-', true);
+      setCell(ws1, r, 11, seg.fromDate || '-', false);
+      setCell(ws1, r, 14, seg.toDate || '-', false);
+      setCell(ws1, r, 17, seg.manDays || '-', false);
+      setCell(ws1, r, 19, seg.manDays === 1 ? 'Day' : 'Days', true);
+      setCell(ws1, r, 21, seg.datesList || '-', true);
+    });
+
+    // Holidays
+    for (let r = 71; r <= 74; r++) [2,3,14,17,21].forEach(c => setCell(ws1, r, c, null));
+    holidaySummary.forEach((seg, idx) => {
+      const r = 71 + idx;
+      setCell(ws1, r, 2, idx + 1, false);
+      setCell(ws1, r, 3, seg.nature, true);
+      setCell(ws1, r, 14, seg.count, false);
+      setCell(ws1, r, 17, seg.count, false);
+      setCell(ws1, r, 21, seg.datesList, true);
+    });
+    setCell(ws1, 74, 3, 'TOTAL', true);
+    setCell(ws1, 74, 14, holidayTotal, false);
+    setCell(ws1, 74, 17, holidayTotal, false);
+
+    // Totals summary
+    const leaveTotal = totalDaysSummary.find(r => r.nature === 'Leaves')?.count || 0;
+    setCell(ws1, 78, 17, manDaysTotal, false);
+    setCell(ws1, 79, 17, leaveTotal || '-', false);
+    setCell(ws1, 80, 17, holidayTotal, false);
+    setCell(ws1, 82, 17, grandTotalDays, false);
+
+    // Sheet2 audit
+    for (let r = 13; r <= 90; r++) for (let c = 2; c <= 18; c++) setCell(ws2, r, c, null);
+
+    monthDates.forEach((dateStr, idx) => {
+      const entry = reportEntries.find(e => e.date === dateStr);
+      const isHoliday = isHolidayStr(dateStr) || (entry && entry.dayStatus === 'Holiday');
+      const isLeave = entry && entry.dayStatus === 'Leave';
+      const isHolidayOrLeave = isHoliday || isLeave;
+      const dateLabel = formatDate(dateStr);
+      const catLabel = toUpper(isHoliday ? 'Holiday' : (isLeave ? 'Leave' : (entry?.inspectionType || '-')));
+      const branchLabel = toUpper(isHoliday ? 'Holiday' : (isLeave ? 'Leave' : (entry?.branch || '-')));
+      const onward = entry?.onwardJourney?.[0] || null;
+      const returnJ = entry?.returnJourney?.[0] || null;
+      let dailyHalting = 0, dailyLodging = 0;
+      entry?.otherExpenses?.forEach(exp => { dailyHalting += exp.halting || 0; dailyLodging += exp.lodging || 0; });
+
+      const rOn = 13 + idx * 2;
+      setCell(ws2, rOn, 2, dateLabel, false);
+      setCell(ws2, rOn, 3, catLabel, true);
+      setCell(ws2, rOn, 4, 'Onward', true);
+      setCell(ws2, rOn, 5, isHolidayOrLeave ? '-' : onward?.from || '-', true);
+      setCell(ws2, rOn, 6, isHolidayOrLeave ? '-' : (onward?.startTime || '-'), false);
+      setCell(ws2, rOn, 7, isHolidayOrLeave ? '-' : onward?.to || '-', true);
+      setCell(ws2, rOn, 8, isHolidayOrLeave ? '-' : (onward?.arrivedTime || '-'), false);
+      setCell(ws2, rOn, 9, isHolidayOrLeave || !onward?.distance ? '-' : onward.distance, false);
+      setCell(ws2, rOn, 10, isHolidayOrLeave ? '-' : onward?.travelBy || (onward ? 'Bus' : '-'), true);
+      setCell(ws2, rOn, 11, isHolidayOrLeave || !onward?.amount ? '-' : onward.amount, false);
+      setCell(ws2, rOn, 12, isHolidayOrLeave || !dailyLodging ? '-' : dailyLodging, false);
+      setCell(ws2, rOn, 13, '-', false);
+      setCell(ws2, rOn, 14, isHolidayOrLeave || !dailyHalting ? '-' : dailyHalting, false);
+      setCell(ws2, rOn, 15, '-', false);
+
+      const rRet = rOn + 1;
+      // Do NOT write date on return row, because Bx:Bx+1 is merged; writing here would clear the date.
+      setCell(ws2, rRet, 3, branchLabel, true);
+      setCell(ws2, rRet, 4, 'Return', true);
+      setCell(ws2, rRet, 5, isHolidayOrLeave ? '-' : returnJ?.from || '-', true);
+      setCell(ws2, rRet, 6, isHolidayOrLeave ? '-' : (returnJ?.startTime || '-'), false);
+      setCell(ws2, rRet, 7, isHolidayOrLeave ? '-' : returnJ?.to || '-', true);
+      setCell(ws2, rRet, 8, isHolidayOrLeave ? '-' : (returnJ?.arrivedTime || '-'), false);
+      setCell(ws2, rRet, 9, isHolidayOrLeave || !returnJ?.distance ? '-' : returnJ.distance, false);
+      setCell(ws2, rRet, 10, isHolidayOrLeave ? '-' : returnJ?.travelBy || (returnJ ? 'Bus' : '-'), true);
+      setCell(ws2, rRet, 11, isHolidayOrLeave || !returnJ?.amount ? '-' : returnJ.amount, false);
+      setCell(ws2, rRet, 12, '-', false);
+      setCell(ws2, rRet, 13, '-', false);
+      setCell(ws2, rRet, 14, '-', false);
+      setCell(ws2, rRet, 15, '-', false);
+    });
+
+    // Sheet3 totals (minimal)
+    setCell(ws3, 7, 18, reportTotals.travel, false);
+    setCell(ws3, 9, 18, reportTotals.lodging, false);
+    setCell(ws3, 11, 18, '-', false);
+    setCell(ws3, 13, 18, reportTotals.halting, false);
+    setCell(ws3, 15, 18, 0, false);
+    setCell(ws3, 20, 18, reportTotals.total, false);
+    setCell(ws3, 22, 18, 0, false);
+    setCell(ws3, 24, 18, reportTotals.total, false);
+
+    const buf = await wb.xlsx.writeBuffer();
+    saveAs(new Blob([buf]), `TA_BILL_${selectedMonthLabel.replace(' ', '_')}.xlsx`);
+  };
 
   const downloadCSV = () => {
     let csv = `TOUR EXPENSE REPORT - ${selectedMonthLabel}\n`;
@@ -834,7 +975,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         {/* Buttons at bottom */}
         <div className="pt-8 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-3 w-full justify-center no-print">
           <button 
-            onClick={downloadCSV} 
+            onClick={downloadExcel} 
             className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-[20px] text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
