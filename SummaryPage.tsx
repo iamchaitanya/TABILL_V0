@@ -260,6 +260,20 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
     return manDaysTotal + leaveTotal + holidayTotal;
   }, [manDaysTotal, leaveTotal, holidayTotal]);
 
+  const closureBranchOptions = useMemo(() => {
+    const now = new Date();
+    const fourMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    const threshold = `${fourMonthsAgo.getFullYear()}-${String(fourMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
+    const uniq = new Set<string>();
+    reportEntries.forEach(e => {
+      if ((e.inspectionType || '').toUpperCase() === 'RBIA' && e.date >= threshold) {
+        const b = (e.branch || '').trim();
+        if (b) uniq.add(b);
+      }
+    });
+    return Array.from(uniq).sort();
+  }, [reportEntries]);
+
   const generateDateRange = (start: string, end: string) => {
     const dates: string[] = [];
     const [sy, sm, sd] = start.split('-').map(Number);
@@ -277,21 +291,20 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
   };
 
   const handleRbiaClosure = () => {
-    const branchInput = window.prompt('Enter branch name for RBIA closure');
-    if (!branchInput || !branchInput.trim()) {
-      setClosureError('Branch name is required');
+    const chosen = closureBranch || (closureBranchOptions.length ? closureBranchOptions[0] : '');
+    if (!chosen) {
+      setClosureError('No RBIA branches in last 4 months');
       setClosureRows([]);
-      setClosureBranch('');
       return;
     }
-    const branchKey = branchInput.trim().toLowerCase();
+    const branchKey = chosen.trim().toLowerCase();
     const branchEntries = [...reportEntries]
       .filter(e => (e.branch || '').trim().toLowerCase() === branchKey)
       .sort((a, b) => a.date.localeCompare(b.date));
     if (branchEntries.length === 0) {
       setClosureError('No saved entries found for that branch');
       setClosureRows([]);
-      setClosureBranch(branchInput.trim());
+      setClosureBranch(chosen.trim());
       return;
     }
     const startDate = branchEntries[0].date;
@@ -312,18 +325,18 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         return {
           date: dateStr,
           status: 'Holiday (Auto)',
-          branch: branchInput.trim(),
+          branch: chosen.trim(),
           inspectionType: '-'
         };
       }
       return {
         date: dateStr,
         status: 'Not saved',
-        branch: branchInput.trim(),
+        branch: chosen.trim(),
         inspectionType: '-'
       };
     });
-    setClosureBranch(branchInput.trim());
+    setClosureBranch(chosen.trim());
     setClosureRows(rows);
     setClosureError(null);
     setIsDetailedExpanded(true);
@@ -1046,6 +1059,19 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         </div>
         {/* Buttons at bottom */}
         <div className="pt-8 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-3 w-full justify-center no-print">
+          <div className="w-full md:w-auto flex flex-col gap-2 md:flex-1">
+            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RBIA Branch (last 4 months)</label>
+            <select
+              value={closureBranch}
+              onChange={e => setClosureBranch(e.target.value)}
+              className="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[14px] px-3 py-3 text-[11px] font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-teal-500"
+            >
+              <option value="">{closureBranchOptions.length ? 'Select branch' : 'No RBIA branches found'}</option>
+              {closureBranchOptions.map(b => (
+                <option key={b} value={b}>{b}</option>
+              ))}
+            </select>
+          </div>
           <button 
             onClick={downloadExcel} 
             className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-[20px] text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl"
