@@ -32,9 +32,6 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
   const [isLeaveExpanded, setIsLeaveExpanded] = useState(false);
   const [isHolidayExpanded, setIsHolidayExpanded] = useState(false);
   const [isTotalDaysExpanded, setIsTotalDaysExpanded] = useState(false);
-  const [closureBranch, setClosureBranch] = useState<string>('');
-  const [closureRows, setClosureRows] = useState<{ date: string; status: string; branch: string; inspectionType: string }[]>([]);
-  const [closureError, setClosureError] = useState<string | null>(null);
 
   // Helper to check consecutive dates
   const isConsecutive = (d1Str: string, d2Str: string) => {
@@ -259,88 +256,6 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
   const grandTotalDays = useMemo(() => {
     return manDaysTotal + leaveTotal + holidayTotal;
   }, [manDaysTotal, leaveTotal, holidayTotal]);
-
-  const closureBranchOptions = useMemo(() => {
-    const now = new Date();
-    const fourMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-    const threshold = `${fourMonthsAgo.getFullYear()}-${String(fourMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
-    const uniq = new Set<string>();
-    reportEntries.forEach(e => {
-      if ((e.inspectionType || '').toUpperCase() === 'RBIA' && e.date >= threshold) {
-        const b = (e.branch || '').trim();
-        if (b) uniq.add(b);
-      }
-    });
-    return Array.from(uniq).sort();
-  }, [reportEntries]);
-
-  const generateDateRange = (start: string, end: string) => {
-    const dates: string[] = [];
-    const [sy, sm, sd] = start.split('-').map(Number);
-    const [ey, em, ed] = end.split('-').map(Number);
-    const cursor = new Date(sy, sm - 1, sd);
-    const endDate = new Date(ey, em - 1, ed);
-    while (cursor <= endDate) {
-      const y = cursor.getFullYear();
-      const m = String(cursor.getMonth() + 1).padStart(2, '0');
-      const d = String(cursor.getDate()).padStart(2, '0');
-      dates.push(`${y}-${m}-${d}`);
-      cursor.setDate(cursor.getDate() + 1);
-    }
-    return dates;
-  };
-
-  const handleRbiaClosure = () => {
-    const chosen = closureBranch || (closureBranchOptions.length ? closureBranchOptions[0] : '');
-    if (!chosen) {
-      setClosureError('No RBIA branches in last 4 months');
-      setClosureRows([]);
-      return;
-    }
-    const branchKey = chosen.trim().toLowerCase();
-    const branchEntries = [...reportEntries]
-      .filter(e => (e.branch || '').trim().toLowerCase() === branchKey)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (branchEntries.length === 0) {
-      setClosureError('No saved entries found for that branch');
-      setClosureRows([]);
-      setClosureBranch(chosen.trim());
-      return;
-    }
-    const startDate = branchEntries[0].date;
-    const endDate = branchEntries[branchEntries.length - 1].date;
-    const allDates = generateDateRange(startDate, endDate);
-    const dateMap = new Map(branchEntries.map(e => [e.date, e]));
-    const rows = allDates.map(dateStr => {
-      const entry = dateMap.get(dateStr);
-      if (entry) {
-        return {
-          date: dateStr,
-          status: entry.dayStatus || 'Inspection',
-          branch: entry.branch || '-',
-          inspectionType: entry.inspectionType || '-'
-        };
-      }
-      if (isHolidayStr(dateStr)) {
-        return {
-          date: dateStr,
-          status: 'Holiday (Auto)',
-          branch: chosen.trim(),
-          inspectionType: '-'
-        };
-      }
-      return {
-        date: dateStr,
-        status: 'Not saved',
-        branch: chosen.trim(),
-        inspectionType: '-'
-      };
-    });
-    setClosureBranch(chosen.trim());
-    setClosureRows(rows);
-    setClosureError(null);
-    setIsDetailedExpanded(true);
-  };
 
   const downloadExcel = async () => {
     const resp = await fetch('/Template.xlsx');
@@ -1059,19 +974,6 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         </div>
         {/* Buttons at bottom */}
         <div className="pt-8 border-t border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-3 w-full justify-center no-print">
-          <div className="w-full md:w-auto flex flex-col gap-2 md:flex-1">
-            <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RBIA Branch (last 4 months)</label>
-            <select
-              value={closureBranch}
-              onChange={e => setClosureBranch(e.target.value)}
-              className="w-full bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[14px] px-3 py-3 text-[11px] font-bold text-slate-800 dark:text-slate-100 outline-none focus:ring-2 focus:ring-teal-500"
-            >
-              <option value="">{closureBranchOptions.length ? 'Select branch' : 'No RBIA branches found'}</option>
-              {closureBranchOptions.map(b => (
-                <option key={b} value={b}>{b}</option>
-              ))}
-            </select>
-          </div>
           <button 
             onClick={downloadExcel} 
             className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-green-600 hover:bg-green-700 dark:bg-green-700 dark:hover:bg-green-600 text-white rounded-[20px] text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl"
@@ -1081,56 +983,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
             </svg>
             Excel Export
           </button>
-          <button
-            onClick={handleRbiaClosure}
-            className="w-full flex items-center justify-center gap-3 px-8 py-4 bg-slate-900 hover:bg-black dark:bg-slate-800 dark:hover:bg-slate-700 text-white rounded-[20px] text-[11px] font-black uppercase tracking-widest transition-all active:scale-95 shadow-xl"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4h16M4 10h16M4 16h10" />
-            </svg>
-            RBIA Closure
-          </button>
         </div>
-
-        {closureBranch && (
-          <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
-            <div className="flex items-center justify-between mb-3">
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RBIA Closure</p>
-                <p className="text-sm font-black text-slate-800 dark:text-slate-100">Branch: {closureBranch}</p>
-              </div>
-              {closureError && <span className="text-xs font-bold text-red-600">{closureError}</span>}
-            </div>
-            {!closureError && (
-              <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
-                <table className="min-w-full text-left text-[11px]">
-                  <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 uppercase tracking-[0.15em]">
-                    <tr>
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Day</th>
-                      <th className="px-3 py-2">Status</th>
-                      <th className="px-3 py-2">Inspection Type</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {closureRows.map((row, idx) => {
-                      const [y, m, d] = row.date.split('-').map(Number);
-                      const dayName = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short' });
-                      return (
-                        <tr key={row.date + idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                          <td className="px-3 py-2 font-black text-slate-800 dark:text-slate-100">{formatDate(row.date)}</td>
-                          <td className="px-3 py-2 text-slate-500 dark:text-slate-400 uppercase">{dayName}</td>
-                          <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.status}</td>
-                          <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.inspectionType}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
       </div>
     </div>
   );

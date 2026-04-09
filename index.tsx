@@ -71,6 +71,10 @@ const App = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
   const [attemptedSaveIds, setAttemptedSaveIds] = useState<Set<string>>(new Set());
+  const [showRbiaClosure, setShowRbiaClosure] = useState(false);
+  const [closureBranch, setClosureBranch] = useState<string>('');
+  const [closureRows, setClosureRows] = useState<{ date: string; status: string; inspectionType: string }[]>([]);
+  const [closureError, setClosureError] = useState<string | null>(null);
 
   // --- Theme Sync ---
   useEffect(() => {
@@ -263,6 +267,80 @@ const App = () => {
     return { halting: h, lodging: l, travel: t, total: h + l + t };
   }, [reportEntries]);
 
+  const closureBranchOptions = useMemo(() => {
+    const now = new Date();
+    const fourMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    const threshold = `${fourMonthsAgo.getFullYear()}-${String(fourMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
+    const uniq = new Set<string>();
+    reportEntries.forEach(e => {
+      if ((e.inspectionType || '').toUpperCase() === 'RBIA' && e.date >= threshold) {
+        const b = (e.branch || '').trim();
+        if (b) uniq.add(b);
+      }
+    });
+    return Array.from(uniq).sort();
+  }, [reportEntries]);
+
+  const generateDateRange = (start: string, end: string) => {
+    const dates: string[] = [];
+    const [sy, sm, sd] = start.split('-').map(Number);
+    const [ey, em, ed] = end.split('-').map(Number);
+    const cursor = new Date(sy, sm - 1, sd);
+    const endDate = new Date(ey, em - 1, ed);
+    while (cursor <= endDate) {
+      const y = cursor.getFullYear();
+      const m = String(cursor.getMonth() + 1).padStart(2, '0');
+      const d = String(cursor.getDate()).padStart(2, '0');
+      dates.push(`${y}-${m}-${d}`);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return dates;
+  };
+
+  const formatDateLabel = (dStr: string) => {
+    const [y, m, d] = dStr.split('-');
+    return `${d}/${m}/${y}`;
+  };
+
+  const openRbiaClosure = (branchName?: string) => {
+    const chosen = branchName || closureBranch || (closureBranchOptions[0] || '');
+    if (!chosen) {
+      setClosureError('No RBIA branches found in the last 4 months.');
+      setClosureRows([]);
+      setShowRbiaClosure(true);
+      return;
+    }
+    const key = chosen.trim().toLowerCase();
+    const entries = [...reportEntries]
+      .filter(e => (e.branch || '').trim().toLowerCase() === key)
+      .sort((a, b) => a.date.localeCompare(b.date));
+    if (entries.length === 0) {
+      setClosureError('No saved entries for that branch.');
+      setClosureRows([]);
+      setClosureBranch(chosen);
+      setShowRbiaClosure(true);
+      return;
+    }
+    const startDate = entries[0].date;
+    const endDate = entries[entries.length - 1].date;
+    const allDates = generateDateRange(startDate, endDate);
+    const map = new Map(entries.map(e => [e.date, e]));
+    const rows = allDates.map(d => {
+      const entry = map.get(d);
+      if (entry) {
+        return { date: d, status: entry.dayStatus || 'Inspection', inspectionType: entry.inspectionType || '-' };
+      }
+      if (isHolidayStr(d)) {
+        return { date: d, status: 'Holiday (Auto)', inspectionType: '-' };
+      }
+      return { date: d, status: 'Not saved', inspectionType: '-' };
+    });
+    setClosureBranch(chosen);
+    setClosureRows(rows);
+    setClosureError(null);
+    setShowRbiaClosure(true);
+  };
+
   const changeMonth = (offset: number) => {
     setCalendarViewDate(new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + offset, 1));
   };
@@ -335,15 +413,12 @@ const App = () => {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsDarkMode(!isDarkMode)} 
-              className="p-2 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+            <button
+              onClick={() => openRbiaClosure()}
+              className="px-3 py-2 rounded-xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest shadow-sm hover:bg-black transition-colors"
+              title="RBIA Closure"
             >
-              {isDarkMode ? (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707M16.95 16.95l.707.707M7.05 7.05l.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
-              ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-              )}
+              RBIA
             </button>
             <button onClick={() => setShowCalendar(true)} className="p-2 text-slate-400 hover:text-teal-600 dark:hover:text-teal-400 transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
@@ -403,6 +478,64 @@ const App = () => {
           />
         )}
       </main>
+
+      {showRbiaClosure && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm no-print">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-[28px] shadow-2xl overflow-hidden animate-in fade-in duration-200">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RBIA Closure</p>
+                <p className="text-sm font-black text-slate-800 dark:text-slate-100">Select branch (last 4 months)</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <select
+                  value={closureBranch}
+                  onChange={e => { setClosureBranch(e.target.value); openRbiaClosure(e.target.value); }}
+                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[11px] font-bold outline-none focus:ring-2 focus:ring-teal-500"
+                >
+                  <option value="">{closureBranchOptions.length ? 'Select' : 'No RBIA branches'}</option>
+                  {closureBranchOptions.map(b => <option key={b} value={b}>{b}</option>)}
+                </select>
+                <button onClick={() => setShowRbiaClosure(false)} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-4">
+              {closureError && <div className="text-xs font-bold text-red-600 mb-3">{closureError}</div>}
+              {!closureError && (
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl">
+                  <table className="min-w-full text-left text-[11px]">
+                    <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 uppercase tracking-[0.15em]">
+                      <tr>
+                        <th className="px-3 py-2">Date</th>
+                        <th className="px-3 py-2">Day</th>
+                        <th className="px-3 py-2">Status</th>
+                        <th className="px-3 py-2">Inspection Type</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {closureRows.map((row, idx) => {
+                        const [y, m, d] = row.date.split('-').map(Number);
+                        const dayName = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short' });
+                        return (
+                          <tr key={row.date + idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-2 font-black text-slate-800 dark:text-slate-100">{formatDateLabel(row.date)}</td>
+                            <td className="px-3 py-2 text-slate-500 dark:text-slate-400 uppercase">{dayName}</td>
+                            <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.status}</td>
+                            <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.inspectionType}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-teal-100 dark:border-slate-800 flex justify-around items-center pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] px-6 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.3)] no-print transition-colors">
         <button onClick={() => setActiveTab('entries')} className={`flex flex-col items-center gap-1.5 p-2 rounded-2xl transition-all ${activeTab === 'entries' ? 'text-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'text-slate-400 dark:text-slate-500'}`}>
