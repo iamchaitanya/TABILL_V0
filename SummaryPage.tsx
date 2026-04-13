@@ -277,7 +277,59 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         target.value = val;
       }
     };
+    const clearCell = (ws: ExcelJS.Worksheet, r: number, c: number) => {
+      const cell = ws.getCell(r, c);
+      const target = (cell as any).master || cell;
+      target.value = null;
+    };
+    const clearRange = (ws: ExcelJS.Worksheet, r1: number, c1: number, r2: number, c2: number) => {
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) clearCell(ws, r, c);
+      }
+    };
     const toUpper = (v: any) => (v === undefined || v === null || v === '' ? '-' : String(v).toUpperCase());
+    const getCellText = (v: ExcelJS.CellValue): string => {
+      if (typeof v === 'string') return v;
+      if (v && typeof v === 'object') {
+        if ('text' in (v as any) && typeof (v as any).text === 'string') return (v as any).text;
+        if ('richText' in (v as any) && Array.isArray((v as any).richText)) {
+          return (v as any).richText.map((t: any) => t?.text || '').join('');
+        }
+      }
+      return '';
+    };
+    const findRowByText = (ws: ExcelJS.Worksheet, needle: string): number | null => {
+      const query = needle.toUpperCase();
+      for (let r = 1; r <= ws.rowCount; r++) {
+        const row = ws.getRow(r);
+        for (let c = 1; c <= ws.columnCount; c++) {
+          const text = getCellText(row.getCell(c).value).toUpperCase();
+          if (text.includes(query)) return r;
+        }
+      }
+      return null;
+    };
+
+    // Resolve dynamic section anchors so small template layout shifts don't break mapping.
+    const dutyHeaderRow = findRowByText(ws1, '1. PARTICULARS OF DUTY ATTENDED') ?? 27;
+    const mandaysHeaderRow = findRowByText(ws1, '2. TOTAL MANDAYS ATTENDED') ?? 43;
+    const holidayHeaderRow = findRowByText(ws1, '4. PUBLIC HOLIDAYS') ?? 69;
+    const grandTotalHeaderRow = findRowByText(ws1, '5. GRAND TOTAL') ?? 78;
+    const leaveHeaderRow = findRowByText(ws1, '3. LEAVE AVAILED') ?? 65;
+    const localConveyanceHeaderRow = findRowByText(ws1, '6. AMOUNT CLAIMED UNDER LOCAL CONVEYANCE') ?? 88;
+
+    const dutyStartRow = dutyHeaderRow + 3; // headers occupy 2 rows after section title
+    const mandaysStartRow = mandaysHeaderRow + 5; // section title + 4 header rows
+    const holidayStartRow = holidayHeaderRow + 2; // section title + 1 header row
+    const holidayTotalRow = holidayStartRow + 3;
+    const leaveStartRow = leaveHeaderRow + 3; // section title + 2 header rows
+    const leaveEndRow = holidayHeaderRow - 1;
+    const dutyEndRow = mandaysHeaderRow - 2;
+    const mandaysEndRow = leaveHeaderRow - 3;
+    const grandTotalManDaysRow = grandTotalHeaderRow + 2;
+    const grandTotalLeaveRow = grandTotalHeaderRow + 3;
+    const grandTotalHolidayRow = grandTotalHeaderRow + 4;
+    const grandTotalAllDaysRow = grandTotalHeaderRow + 6;
 
     // Sheet1 header
     setCell(ws1, 7, 4, profile.name);
@@ -286,55 +338,85 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
     setCell(ws1, 22, 22, reportTotals.total, false);
 
     // Duty rows (uppercase strings)
-    for (let r = 30; r <= 41; r++) [2,3,9,11,16,19,22].forEach(c => setCell(ws1, r, c, null));
-    branchSummary.forEach((seg, idx) => {
-      const r = 30 + idx;
+    clearRange(ws1, dutyStartRow, 2, dutyEndRow, 25);
+    const dutyRowsCapacity = Math.max(0, dutyEndRow - dutyStartRow + 1);
+    branchSummary.slice(0, dutyRowsCapacity).forEach((seg, idx) => {
+      const r = dutyStartRow + idx;
       setCell(ws1, r, 2, idx + 1, false);
-      setCell(ws1, r, 3, seg.branch, true);
-      setCell(ws1, r, 9, seg.dpCode || '-', true);
-      setCell(ws1, r, 11, seg.inspectionType || '-', true);
-      setCell(ws1, r, 16, seg.fromDate || '-', false);
-      setCell(ws1, r, 19, seg.toDate || '-', false);
+      for (let c = 3; c <= 8; c++) setCell(ws1, r, c, seg.branch, true);
+      for (let c = 9; c <= 10; c++) setCell(ws1, r, c, seg.dpCode || '-', true);
+      for (let c = 11; c <= 15; c++) setCell(ws1, r, c, seg.inspectionType || '-', true);
+      for (let c = 16; c <= 18; c++) setCell(ws1, r, c, seg.fromDate || '-', false);
+      for (let c = 19; c <= 21; c++) setCell(ws1, r, c, seg.toDate || '-', false);
       setCell(ws1, r, 22, seg.branch || '-', true);
     });
 
     // Mandays
-    for (let r = 48; r <= 59; r++) [2,3,9,11,14,17,19,21].forEach(c => setCell(ws1, r, c, null));
-    branchSummary.forEach((seg, idx) => {
-      const r = 48 + idx;
+    for (let r = mandaysHeaderRow + 3; r <= mandaysStartRow - 1; r++) {
+      const bText = getCellText(ws1.getCell(r, 2).value).toUpperCase();
+      if (bText.includes('SL. NO.')) clearRange(ws1, r, 2, r, 25);
+    }
+    clearRange(ws1, mandaysStartRow, 2, mandaysEndRow, 25);
+    const mandaysRowsCapacity = Math.max(0, mandaysEndRow - mandaysStartRow + 1);
+    branchSummary.slice(0, mandaysRowsCapacity).forEach((seg, idx) => {
+      const r = mandaysStartRow + idx;
       setCell(ws1, r, 2, idx + 1, false);
-      setCell(ws1, r, 3, seg.branch, true);
-      setCell(ws1, r, 9, seg.dpCode || '-', true);
-      setCell(ws1, r, 11, seg.fromDate || '-', false);
-      setCell(ws1, r, 14, seg.toDate || '-', false);
+      for (let c = 3; c <= 8; c++) setCell(ws1, r, c, seg.branch, true);
+      for (let c = 9; c <= 10; c++) setCell(ws1, r, c, seg.dpCode || '-', true);
+      for (let c = 11; c <= 13; c++) setCell(ws1, r, c, seg.fromDate || '-', false);
+      for (let c = 14; c <= 16; c++) setCell(ws1, r, c, seg.toDate || '-', false);
       setCell(ws1, r, 17, seg.manDays || '-', false);
-      setCell(ws1, r, 19, seg.manDays === 1 ? 'Day' : 'Days', true);
+      setCell(ws1, r, 20, seg.manDays === 1 ? 'Day' : 'Days', false);
+      setCell(ws1, r, 21, seg.datesList || '-', true);
+    });
+    // Keep merge consistent with surrounding rows (user-noted N51/O51 misalignment in updated template)
+    const mergeFixRow = mandaysStartRow + 2;
+    if (mergeFixRow <= mandaysEndRow) {
+      try { ws1.unMergeCells(mergeFixRow, 14, mergeFixRow, 16); } catch {}
+      try { ws1.unMergeCells(mergeFixRow, 15, mergeFixRow, 16); } catch {}
+      try { ws1.mergeCells(mergeFixRow, 14, mergeFixRow, 16); } catch {}
+    }
+
+    // Leave table
+    clearRange(ws1, leaveStartRow, 2, leaveEndRow, 25);
+    const leaveRowsCapacity = Math.max(0, leaveEndRow - leaveStartRow + 1);
+    leaveSummary.slice(0, leaveRowsCapacity).forEach((seg, idx) => {
+      const r = leaveStartRow + idx;
+      setCell(ws1, r, 2, idx + 1, false);
+      for (let c = 3; c <= 10; c++) setCell(ws1, r, c, seg.nature, true);
+      for (let c = 11; c <= 13; c++) setCell(ws1, r, c, seg.fromDate || '-', false);
+      for (let c = 14; c <= 16; c++) setCell(ws1, r, c, seg.toDate || '-', false);
+      for (let c = 17; c <= 18; c++) setCell(ws1, r, c, seg.count || '-', false);
+      for (let c = 19; c <= 20; c++) setCell(ws1, r, c, seg.count || '-', false);
       setCell(ws1, r, 21, seg.datesList || '-', true);
     });
 
     // Holidays
-    for (let r = 71; r <= 74; r++) [2,3,14,17,21].forEach(c => setCell(ws1, r, c, null));
-    holidaySummary.forEach((seg, idx) => {
-      const r = 71 + idx;
+    clearRange(ws1, holidayStartRow, 2, holidayTotalRow, 25);
+    holidaySummary.slice(0, 3).forEach((seg, idx) => {
+      const r = holidayStartRow + idx;
       setCell(ws1, r, 2, idx + 1, false);
-      setCell(ws1, r, 3, seg.nature, true);
-      setCell(ws1, r, 14, seg.count, false);
-      setCell(ws1, r, 17, seg.count, false);
+      for (let c = 3; c <= 13; c++) setCell(ws1, r, c, seg.nature, true);
+      for (let c = 14; c <= 16; c++) setCell(ws1, r, c, seg.count, false);
+      for (let c = 17; c <= 20; c++) setCell(ws1, r, c, seg.count, false);
       setCell(ws1, r, 21, seg.datesList, true);
     });
-    setCell(ws1, 74, 3, 'TOTAL', true);
-    setCell(ws1, 74, 14, holidayTotal, false);
-    setCell(ws1, 74, 17, holidayTotal, false);
+    setCell(ws1, holidayTotalRow, 3, 'TOTAL', true);
+    for (let c = 14; c <= 16; c++) setCell(ws1, holidayTotalRow, c, holidayTotal, false);
+    // Keep Q76 blank as requested (updated template position of total row in this section).
+    for (let c = 17; c <= 20; c++) clearCell(ws1, holidayTotalRow, c);
 
     // Totals summary
     const leaveTotal = totalDaysSummary.find(r => r.nature === 'Leaves')?.count || 0;
-    setCell(ws1, 78, 17, manDaysTotal, false);
-    setCell(ws1, 79, 17, leaveTotal || '-', false);
-    setCell(ws1, 80, 17, holidayTotal, false);
-    setCell(ws1, 82, 17, grandTotalDays, false);
+    for (let c = 17; c <= 20; c++) setCell(ws1, grandTotalManDaysRow, c, manDaysTotal, false);
+    for (let c = 17; c <= 20; c++) setCell(ws1, grandTotalLeaveRow, c, leaveTotal || '-', false);
+    for (let c = 17; c <= 20; c++) setCell(ws1, grandTotalHolidayRow, c, holidayTotal, false);
+    for (let c = 17; c <= 20; c++) setCell(ws1, grandTotalAllDaysRow, c, grandTotalDays, false);
 
     // Sheet2 audit
-    for (let r = 13; r <= 90; r++) for (let c = 2; c <= 18; c++) setCell(ws2, r, c, null);
+    const sheet2DataStartRow = 13;
+    const sheet2DataEndRow = 74; // 31 days * 2 rows/day
+    clearRange(ws2, sheet2DataStartRow, 2, sheet2DataEndRow, 15);
 
     monthDates.forEach((dateStr, idx) => {
       const entry = reportEntries.find(e => e.date === dateStr);
@@ -349,10 +431,11 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
       let dailyHalting = 0, dailyLodging = 0;
       entry?.otherExpenses?.forEach(exp => { dailyHalting += exp.halting || 0; dailyLodging += exp.lodging || 0; });
 
-      const rOn = 13 + idx * 2;
+      const rOn = sheet2DataStartRow + idx * 2;
+      if (rOn + 1 > sheet2DataEndRow) return;
       setCell(ws2, rOn, 2, dateLabel, false);
       setCell(ws2, rOn, 3, catLabel, true);
-      setCell(ws2, rOn, 4, 'Onward', true);
+      setCell(ws2, rOn, 4, 'Onward', false);
       setCell(ws2, rOn, 5, isHolidayOrLeave ? '-' : onward?.from || '-', true);
       setCell(ws2, rOn, 6, isHolidayOrLeave ? '-' : (onward?.startTime || '-'), false);
       setCell(ws2, rOn, 7, isHolidayOrLeave ? '-' : onward?.to || '-', true);
@@ -368,7 +451,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
       const rRet = rOn + 1;
       // Do NOT write date on return row, because Bx:Bx+1 is merged; writing here would clear the date.
       setCell(ws2, rRet, 3, branchLabel, true);
-      setCell(ws2, rRet, 4, 'Return', true);
+      setCell(ws2, rRet, 4, 'Return', false);
       setCell(ws2, rRet, 5, isHolidayOrLeave ? '-' : returnJ?.from || '-', true);
       setCell(ws2, rRet, 6, isHolidayOrLeave ? '-' : (returnJ?.startTime || '-'), false);
       setCell(ws2, rRet, 7, isHolidayOrLeave ? '-' : returnJ?.to || '-', true);
@@ -391,6 +474,35 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
     setCell(ws3, 20, 18, reportTotals.total, false);
     setCell(ws3, 22, 18, 0, false);
     setCell(ws3, 24, 18, reportTotals.total, false);
+
+    // Apply borders to all table regions across sheets.
+    const thinBorder: Partial<ExcelJS.Borders> = {
+      top: { style: 'thin' },
+      right: { style: 'thin' },
+      bottom: { style: 'thin' },
+      left: { style: 'thin' }
+    };
+    const applyBorderRange = (ws: ExcelJS.Worksheet, r1: number, c1: number, r2: number, c2: number) => {
+      for (let r = r1; r <= r2; r++) {
+        for (let c = c1; c <= c2; c++) {
+          ws.getCell(r, c).border = thinBorder as ExcelJS.Borders;
+        }
+      }
+    };
+
+    applyBorderRange(ws1, dutyHeaderRow + 1, 2, dutyEndRow, 25);
+    applyBorderRange(ws1, mandaysHeaderRow + 1, 2, mandaysEndRow, 25);
+    applyBorderRange(ws1, leaveHeaderRow + 1, 2, leaveEndRow, 25);
+    applyBorderRange(ws1, holidayHeaderRow + 1, 2, holidayTotalRow, 25);
+    applyBorderRange(ws1, grandTotalHeaderRow + 1, 2, grandTotalAllDaysRow, 25);
+    applyBorderRange(ws1, localConveyanceHeaderRow + 1, 2, localConveyanceHeaderRow + 2, 25);
+    applyBorderRange(ws2, 9, 2, 75, 18);
+    applyBorderRange(ws3, 5, 2, 32, 18);
+
+    const ws4 = wb.getWorksheet('Sheet4');
+    if (ws4 && ws4.rowCount > 0 && ws4.columnCount > 0) {
+      applyBorderRange(ws4, 1, 1, ws4.rowCount, ws4.columnCount);
+    }
 
     const buf = await wb.xlsx.writeBuffer();
     saveAs(new Blob([buf]), `TA_BILL_${selectedMonthLabel.replace(' ', '_')}.xlsx`);

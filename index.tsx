@@ -8,9 +8,11 @@ import { EntriesPage } from './EntriesPage';
 import { ReportPage } from './ReportPage';
 import { SummaryPage } from './SummaryPage';
 import { ProfilePage } from './ProfilePage';
+import { RbiaClosurePage } from './RbiaClosurePage';
 
 const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const toIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
   // --- State ---
   const [activeTab, setActiveTab] = useState<AppTab>('entries');
@@ -71,10 +73,8 @@ const App = () => {
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
   const [attemptedSaveIds, setAttemptedSaveIds] = useState<Set<string>>(new Set());
-  const [showRbiaClosure, setShowRbiaClosure] = useState(false);
+  const [showRbiaClosurePage, setShowRbiaClosurePage] = useState(false);
   const [closureBranch, setClosureBranch] = useState<string>('');
-  const [closureRows, setClosureRows] = useState<{ date: string; status: string; inspectionType: string }[]>([]);
-  const [closureError, setClosureError] = useState<string | null>(null);
 
   // --- Theme Sync ---
   useEffect(() => {
@@ -267,19 +267,28 @@ const App = () => {
     return { halting: h, lodging: l, travel: t, total: h + l + t };
   }, [reportEntries]);
 
+  const savedEntries = useMemo(() => {
+    const saved = data.entries.filter(e => e.lastSavedAt);
+    const dateMap = new Map<string, InspectionEntry>();
+    saved.forEach(entry => dateMap.set(entry.date, entry));
+    return Array.from(dateMap.values()).sort((a, b) => a.date.localeCompare(b.date));
+  }, [data.entries]);
+
+  const reportGeneratedOn = useMemo(() => toIsoDate(new Date()), []);
+
   const closureBranchOptions = useMemo(() => {
     const now = new Date();
     const fourMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
     const threshold = `${fourMonthsAgo.getFullYear()}-${String(fourMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
-    const uniq = new Set<string>();
-    reportEntries.forEach(e => {
-      if ((e.inspectionType || '').toUpperCase() === 'RBIA' && e.date >= threshold) {
+    const uniq = new Map<string, string>();
+    savedEntries.forEach(e => {
+      if ((e.inspectionType || '').toUpperCase() === 'RBIA' && e.date >= threshold && e.date <= reportGeneratedOn) {
         const b = (e.branch || '').trim();
-        if (b) uniq.add(b);
+        if (b && !uniq.has(b.toLowerCase())) uniq.set(b.toLowerCase(), b);
       }
     });
-    return Array.from(uniq).sort();
-  }, [reportEntries]);
+    return Array.from(uniq.values()).sort((a, b) => a.localeCompare(b));
+  }, [savedEntries, reportGeneratedOn]);
 
   const generateDateRange = (start: string, end: string) => {
     const dates: string[] = [];
@@ -302,44 +311,109 @@ const App = () => {
     return `${d}/${m}/${y}`;
   };
 
-  const openRbiaClosure = (branchName?: string) => {
-    const chosen = branchName || closureBranch || (closureBranchOptions[0] || '');
-    if (!chosen) {
-      setClosureError('No RBIA branches found in the last 4 months.');
-      setClosureRows([]);
-      setShowRbiaClosure(true);
-      return;
+  const openRbiaClosurePage = () => {
+    if (!closureBranch && closureBranchOptions.length) {
+      setClosureBranch(closureBranchOptions[0]);
     }
-    const key = chosen.trim().toLowerCase();
-    const entries = [...reportEntries]
-      .filter(e => (e.branch || '').trim().toLowerCase() === key)
-      .sort((a, b) => a.date.localeCompare(b.date));
-    if (entries.length === 0) {
-      setClosureError('No saved entries for that branch.');
-      setClosureRows([]);
-      setClosureBranch(chosen);
-      setShowRbiaClosure(true);
-      return;
-    }
-    const startDate = entries[0].date;
-    const endDate = entries[entries.length - 1].date;
-    const allDates = generateDateRange(startDate, endDate);
-    const map = new Map(entries.map(e => [e.date, e]));
-    const rows = allDates.map(d => {
-      const entry = map.get(d);
-      if (entry) {
-        return { date: d, status: entry.dayStatus || 'Inspection', inspectionType: entry.inspectionType || '-' };
-      }
-      if (isHolidayStr(d)) {
-        return { date: d, status: 'Holiday (Auto)', inspectionType: '-' };
-      }
-      return { date: d, status: 'Not saved', inspectionType: '-' };
-    });
-    setClosureBranch(chosen);
-    setClosureRows(rows);
-    setClosureError(null);
-    setShowRbiaClosure(true);
+    setShowRbiaClosurePage(true);
   };
+
+  const rbiaClosureData = useMemo(() => {
+    if (!closureBranch) {
+      return {
+        startDate: null as string | null,
+        endDate: reportGeneratedOn,
+        error: closureBranchOptions.length ? 'Select a branch to generate RBIA report.' : 'No RBIA branches found in the last 4 months.',
+        rbiaDates: [] as string[],
+        sundays: [] as string[],
+        secondSaturdays: [] as string[],
+        fourthSaturdays: [] as string[],
+        holidays: [] as string[],
+        leaves: [] as string[],
+        otherBranchWork: [] as { date: string; branch: string; inspectionType: string }[]
+      };
+    }
+
+    const key = closureBranch.trim().toLowerCase();
+    const rbiaForSelectedBranch = savedEntries
+      .filter(e => (e.inspectionType || '').toUpperCase() === 'RBIA' && (e.branch || '').trim().toLowerCase() === key)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
+    if (!rbiaForSelectedBranch.length) {
+      return {
+        startDate: null as string | null,
+        endDate: reportGeneratedOn,
+        error: 'No RBIA entries found for selected branch.',
+        rbiaDates: [] as string[],
+        sundays: [] as string[],
+        secondSaturdays: [] as string[],
+        fourthSaturdays: [] as string[],
+        holidays: [] as string[],
+        leaves: [] as string[],
+        otherBranchWork: [] as { date: string; branch: string; inspectionType: string }[]
+      };
+    }
+
+    const startDate = rbiaForSelectedBranch[0].date;
+    const allDates = generateDateRange(startDate, reportGeneratedOn);
+    const entriesByDate = new Map(savedEntries.map(e => [e.date, e]));
+    const rbiaDateSet = new Set(rbiaForSelectedBranch.map(e => e.date));
+
+    const rbiaDates: string[] = [];
+    const sundays: string[] = [];
+    const secondSaturdays: string[] = [];
+    const fourthSaturdays: string[] = [];
+    const holidays: string[] = [];
+    const leaves: string[] = [];
+    const otherBranchWork: { date: string; branch: string; inspectionType: string }[] = [];
+
+    allDates.forEach(d => {
+      const [y, m, dayNum] = d.split('-').map(Number);
+      const dt = new Date(y, m - 1, dayNum);
+      const day = dt.getDay();
+      const isSunday = day === 0;
+      const isSecondSaturday = day === 6 && dayNum >= 8 && dayNum <= 14;
+      const isFourthSaturday = day === 6 && dayNum >= 22 && dayNum <= 28;
+
+      if (rbiaDateSet.has(d)) rbiaDates.push(d);
+      if (isSunday) sundays.push(d);
+      if (isSecondSaturday) secondSaturdays.push(d);
+      if (isFourthSaturday) fourthSaturdays.push(d);
+
+      const entry = entriesByDate.get(d);
+      if (entry?.dayStatus === 'Holiday' && !isSunday && !isSecondSaturday && !isFourthSaturday) {
+        holidays.push(d);
+      }
+      if (entry?.dayStatus === 'Leave') {
+        leaves.push(d);
+      }
+      if (
+        entry &&
+        entry.dayStatus === 'Inspection' &&
+        (entry.branch || '').trim() &&
+        (entry.branch || '').trim().toLowerCase() !== key
+      ) {
+        otherBranchWork.push({
+          date: d,
+          branch: entry.branch,
+          inspectionType: entry.inspectionType || '-'
+        });
+      }
+    });
+
+    return {
+      startDate,
+      endDate: reportGeneratedOn,
+      error: null as string | null,
+      rbiaDates,
+      sundays,
+      secondSaturdays,
+      fourthSaturdays,
+      holidays,
+      leaves,
+      otherBranchWork
+    };
+  }, [closureBranch, closureBranchOptions.length, reportGeneratedOn, savedEntries]);
 
   const changeMonth = (offset: number) => {
     setCalendarViewDate(new Date(calendarViewDate.getFullYear(), calendarViewDate.getMonth() + offset, 1));
@@ -414,7 +488,7 @@ const App = () => {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => openRbiaClosure()}
+              onClick={openRbiaClosurePage}
               className="px-3 py-2 rounded-xl bg-slate-900 text-white text-[11px] font-black uppercase tracking-widest shadow-sm hover:bg-black transition-colors"
               title="RBIA Closure"
             >
@@ -440,103 +514,68 @@ const App = () => {
       </header>
 
       <main className="flex-1 max-w-[1600px] mx-auto w-full p-4 md:p-8 pb-[calc(6rem+env(safe-area-inset-bottom))]">
-        {activeTab === 'entries' && (
-          <div className="no-print">
-            <EntriesPage 
-              data={data} handleEntryChange={handleEntryChange} handleDatePartChange={handleDatePartChange}
-              saveEntry={saveEntry} resetEntry={resetEntry} toggleSection={(id, cat) => setExpandedSections(p => ({...p, [`${id}-${cat}`]: !p[`${id}-${cat}`]}))}
-              expandedSections={expandedSections} handleExpenseItemChange={(id, cat, iid, f, v) => setData(p => ({...p, entries: p.entries.map(e => e.id===id ? {...e, [cat]: e[cat].map((it:any)=>it.id===iid?{...it,[f]:v}:it)}:e)}))}
-              removeExpenseItem={(id,cat,iid) => setData(p => ({...p, entries: p.entries.map(e => e.id===id ? {...e, [cat]: e[cat].filter((it:any)=>it.id!==iid)}:e)}))}
-              addExpenseItem={(id,cat) => {
-                const item = cat==='otherExpenses' 
-                  ? {id:generateId(), halting:0, lodging:0} 
-                  : {id:generateId(), from:'', to:'', startTime:'', arrivedTime:'', amount:0, distance: 0, travelBy: 'Bus'};
-                setData(p => ({...p, entries: p.entries.map(e => e.id===id ? {...e, [cat]: [...e[cat], item]}:e)}));
-              }}
-              recentlySaved={recentlySaved} attemptedSaveIds={attemptedSaveIds}
-            />
-          </div>
-        )}
-        {activeTab === 'report' && (
-          <ReportPage 
-            selectedMonthLabel={selectedMonthLabel} navigateMonth={navigateMonth} reportEntries={reportEntries}
-            deleteFromReport={deleteEntry} reportTotals={reportTotals} currency={data.currency}
+        {showRbiaClosurePage ? (
+          <RbiaClosurePage
+            branchOptions={closureBranchOptions}
+            selectedBranch={closureBranch}
+            onBranchChange={setClosureBranch}
+            onClose={() => setShowRbiaClosurePage(false)}
+            startDate={rbiaClosureData.startDate}
+            endDate={rbiaClosureData.endDate}
+            error={rbiaClosureData.error}
+            formatDateLabel={formatDateLabel}
+            rbiaDates={rbiaClosureData.rbiaDates}
+            sundays={rbiaClosureData.sundays}
+            secondSaturdays={rbiaClosureData.secondSaturdays}
+            fourthSaturdays={rbiaClosureData.fourthSaturdays}
+            holidays={rbiaClosureData.holidays}
+            leaves={rbiaClosureData.leaves}
+            otherBranchWork={rbiaClosureData.otherBranchWork}
           />
-        )}
-        {activeTab === 'summary' && (
-          <SummaryPage 
-            selectedMonthLabel={selectedMonthLabel} navigateMonth={navigateMonth}
-            reportTotals={reportTotals} currency={data.currency}
-            reportEntries={reportEntries} profile={profile} tourName={data.tourName}
-          />
-        )}
-        {activeTab === 'profile' && (
-          <ProfilePage 
-            profile={profile} setProfile={setProfile}
-            data={data} setData={setData}
-            fileInputRef={fileInputRef} handleAvatarUpload={handleAvatarUpload}
-          />
+        ) : (
+          <>
+            {activeTab === 'entries' && (
+              <div className="no-print">
+                <EntriesPage 
+                  data={data} handleEntryChange={handleEntryChange} handleDatePartChange={handleDatePartChange}
+                  saveEntry={saveEntry} resetEntry={resetEntry} toggleSection={(id, cat) => setExpandedSections(p => ({...p, [`${id}-${cat}`]: !p[`${id}-${cat}`]}))}
+                  expandedSections={expandedSections} handleExpenseItemChange={(id, cat, iid, f, v) => setData(p => ({...p, entries: p.entries.map(e => e.id===id ? {...e, [cat]: e[cat].map((it:any)=>it.id===iid?{...it,[f]:v}:it)}:e)}))}
+                  removeExpenseItem={(id,cat,iid) => setData(p => ({...p, entries: p.entries.map(e => e.id===id ? {...e, [cat]: e[cat].filter((it:any)=>it.id!==iid)}:e)}))}
+                  addExpenseItem={(id,cat) => {
+                    const item = cat==='otherExpenses' 
+                      ? {id:generateId(), halting:0, lodging:0} 
+                      : {id:generateId(), from:'', to:'', startTime:'', arrivedTime:'', amount:0, distance: 0, travelBy: 'Bus'};
+                    setData(p => ({...p, entries: p.entries.map(e => e.id===id ? {...e, [cat]: [...e[cat], item]}:e)}));
+                  }}
+                  recentlySaved={recentlySaved} attemptedSaveIds={attemptedSaveIds}
+                />
+              </div>
+            )}
+            {activeTab === 'report' && (
+              <ReportPage 
+                selectedMonthLabel={selectedMonthLabel} navigateMonth={navigateMonth} reportEntries={reportEntries}
+                deleteFromReport={deleteEntry} reportTotals={reportTotals} currency={data.currency}
+              />
+            )}
+            {activeTab === 'summary' && (
+              <SummaryPage 
+                selectedMonthLabel={selectedMonthLabel} navigateMonth={navigateMonth}
+                reportTotals={reportTotals} currency={data.currency}
+                reportEntries={reportEntries} profile={profile} tourName={data.tourName}
+              />
+            )}
+            {activeTab === 'profile' && (
+              <ProfilePage 
+                profile={profile} setProfile={setProfile}
+                data={data} setData={setData}
+                fileInputRef={fileInputRef} handleAvatarUpload={handleAvatarUpload}
+              />
+            )}
+          </>
         )}
       </main>
 
-      {showRbiaClosure && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm no-print">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-[28px] shadow-2xl overflow-hidden animate-in fade-in duration-200">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40">
-              <div>
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">RBIA Closure</p>
-                <p className="text-sm font-black text-slate-800 dark:text-slate-100">Select branch (last 4 months)</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <select
-                  value={closureBranch}
-                  onChange={e => { setClosureBranch(e.target.value); openRbiaClosure(e.target.value); }}
-                  className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-[11px] font-bold outline-none focus:ring-2 focus:ring-teal-500"
-                >
-                  <option value="">{closureBranchOptions.length ? 'Select' : 'No RBIA branches'}</option>
-                  {closureBranchOptions.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-                <button onClick={() => setShowRbiaClosure(false)} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4">
-              {closureError && <div className="text-xs font-bold text-red-600 mb-3">{closureError}</div>}
-              {!closureError && (
-                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-xl">
-                  <table className="min-w-full text-left text-[11px]">
-                    <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 uppercase tracking-[0.15em]">
-                      <tr>
-                        <th className="px-3 py-2">Date</th>
-                        <th className="px-3 py-2">Day</th>
-                        <th className="px-3 py-2">Status</th>
-                        <th className="px-3 py-2">Inspection Type</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                      {closureRows.map((row, idx) => {
-                        const [y, m, d] = row.date.split('-').map(Number);
-                        const dayName = new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short' });
-                        return (
-                          <tr key={row.date + idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                            <td className="px-3 py-2 font-black text-slate-800 dark:text-slate-100">{formatDateLabel(row.date)}</td>
-                            <td className="px-3 py-2 text-slate-500 dark:text-slate-400 uppercase">{dayName}</td>
-                            <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.status}</td>
-                            <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.inspectionType}</td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
+      {!showRbiaClosurePage && (
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-t border-teal-100 dark:border-slate-800 flex justify-around items-center pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] px-6 z-40 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] dark:shadow-[0_-10px_30px_rgba(0,0,0,0.3)] no-print transition-colors">
         <button onClick={() => setActiveTab('entries')} className={`flex flex-col items-center gap-1.5 p-2 rounded-2xl transition-all ${activeTab === 'entries' ? 'text-teal-600 bg-teal-50/50 dark:bg-teal-900/20' : 'text-slate-400 dark:text-slate-500'}`}>
           <svg className="h-5 w-5" fill={activeTab === 'entries' ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
@@ -551,6 +590,7 @@ const App = () => {
           <span className="text-[10px] font-black uppercase tracking-widest">Summary</span>
         </button>
       </nav>
+      )}
 
       {showCalendar && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm no-print">
