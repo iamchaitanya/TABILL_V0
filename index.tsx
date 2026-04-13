@@ -366,6 +366,7 @@ const App = () => {
     const holidays: string[] = [];
     const leaves: string[] = [];
     const otherBranchWork: { date: string; branch: string; inspectionType: string }[] = [];
+    const otherBranchSeen = new Set<string>();
 
     allDates.forEach(d => {
       const [y, m, dayNum] = d.split('-').map(Number);
@@ -375,29 +376,56 @@ const App = () => {
       const isSecondSaturday = day === 6 && dayNum >= 8 && dayNum <= 14;
       const isFourthSaturday = day === 6 && dayNum >= 22 && dayNum <= 28;
 
-      if (rbiaDateSet.has(d)) rbiaDates.push(d);
-      if (isSunday) sundays.push(d);
-      if (isSecondSaturday) secondSaturdays.push(d);
-      if (isFourthSaturday) fourthSaturdays.push(d);
-
       const entry = entriesByDate.get(d);
-      if (entry?.dayStatus === 'Holiday' && !isSunday && !isSecondSaturday && !isFourthSaturday) {
+
+      // Exclusive classification by final visible state: each date belongs to exactly one bucket.
+      if (isSunday) {
+        sundays.push(d);
+        return;
+      }
+      if (isSecondSaturday) {
+        secondSaturdays.push(d);
+        return;
+      }
+      if (isFourthSaturday) {
+        fourthSaturdays.push(d);
+        return;
+      }
+
+      if (!entry) return;
+
+      if (entry.dayStatus === 'Holiday') {
         holidays.push(d);
+        return;
       }
-      if (entry?.dayStatus === 'Leave') {
+
+      if (entry.dayStatus === 'Leave') {
         leaves.push(d);
+        return;
       }
-      if (
-        entry &&
-        entry.dayStatus === 'Inspection' &&
-        (entry.branch || '').trim() &&
-        (entry.branch || '').trim().toLowerCase() !== key
-      ) {
-        otherBranchWork.push({
-          date: d,
-          branch: entry.branch,
-          inspectionType: entry.inspectionType || '-'
-        });
+
+      if (entry.dayStatus !== 'Inspection') return;
+
+      const branch = (entry.branch || '').trim();
+      const branchKey = branch.toLowerCase();
+      const inspectionType = (entry.inspectionType || '').trim();
+      const inspectionUpper = inspectionType.toUpperCase();
+
+      if (inspectionUpper === 'RBIA' && branchKey === key && rbiaDateSet.has(d)) {
+        rbiaDates.push(d);
+        return;
+      }
+
+      if (branch && branchKey !== key) {
+        const rowKey = `${d}::${branchKey}::${inspectionUpper}`;
+        if (!otherBranchSeen.has(rowKey)) {
+          otherBranchSeen.add(rowKey);
+          otherBranchWork.push({
+            date: d,
+            branch,
+            inspectionType: inspectionType || '-'
+          });
+        }
       }
     });
 
