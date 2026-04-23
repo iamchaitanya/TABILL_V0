@@ -155,6 +155,83 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
                   placeholder="Enter ZI"
                 />
               </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Address Line 1</label>
+                <input 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
+                  value={profile.addressLine1} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, addressLine1: e.target.value})} 
+                  placeholder="Enter address line 1"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Address Line 2</label>
+                <input 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
+                  value={profile.addressLine2} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, addressLine2: e.target.value})} 
+                  placeholder="Enter address line 2"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Address Line 3</label>
+                <input 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
+                  value={profile.addressLine3} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, addressLine3: e.target.value})} 
+                  placeholder="Enter address line 3"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Designation</label>
+                <input 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
+                  value={profile.designation} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, designation: e.target.value})} 
+                  placeholder="Enter designation"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Basic Pay</label>
+                <input 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
+                  value={profile.basicPay} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, basicPay: e.target.value})} 
+                  placeholder="Enter basic pay"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Account Number</label>
+                <input 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
+                  value={profile.accountNumber} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, accountNumber: e.target.value})} 
+                  placeholder="Enter account number"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-1 block">Account Branch</label>
+                <input 
+                  readOnly={isDetailsLocked}
+                  className={`w-full bg-slate-50 dark:bg-slate-800 border ${isDetailsLocked ? 'border-transparent' : 'border-slate-200 dark:border-slate-700'} rounded-2xl text-sm font-bold p-4 focus:ring-2 focus:ring-teal-500 outline-none text-slate-900 dark:text-slate-100 transition-colors ${isDetailsLocked ? 'cursor-default' : ''}`}
+                  value={profile.accountBranch} 
+                  onChange={e => !isDetailsLocked && setProfile({...profile, accountBranch: e.target.value})} 
+                  placeholder="Enter account branch"
+                />
+              </div>
             </div>
           ) : (
             /* Passwords Section */

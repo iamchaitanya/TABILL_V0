@@ -40,6 +40,13 @@ const App = () => {
     email: '',
     unit: '',
     zi: '',
+    addressLine1: '',
+    addressLine2: '',
+    addressLine3: '',
+    designation: '',
+    basicPay: '',
+    accountNumber: '',
+    accountBranch: '',
     credentials: [
       { id: generateId(), label: 'CBS', value: '' },
       { id: generateId(), label: 'DMS', value: '' },

@@ -46,6 +46,13 @@ export interface UserProfile {
   email: string;
   unit: string;
   zi: string;
+  addressLine1: string;
+  addressLine2: string;
+  addressLine3: string;
+  designation: string;
+  basicPay: string;
+  accountNumber: string;
+  accountBranch: string;
   credentials: CredentialItem[];
 }
 

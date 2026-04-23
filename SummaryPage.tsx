@@ -277,6 +277,27 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         target.value = val;
       }
     };
+    const setCellBlank = (ws: ExcelJS.Worksheet, r: number, c: number, v: any, upper: boolean = false) => {
+      const cell = ws.getCell(r, c);
+      const target = (cell as any).master || cell;
+      if (v === undefined || v === null || v === '') {
+        target.value = '';
+      } else {
+        const val = upper && typeof v === 'string' ? v.toUpperCase() : v;
+        target.value = val;
+      }
+    };
+    const hasFormula = (ws: ExcelJS.Worksheet, r: number, c: number) => {
+      const cell = ws.getCell(r, c);
+      const target = (cell as any).master || cell;
+      const value = target.value as any;
+      return Boolean(value && typeof value === 'object' && 'formula' in value);
+    };
+    const setFormula = (ws: ExcelJS.Worksheet, r: number, c: number, formula: string) => {
+      const cell = ws.getCell(r, c);
+      const target = (cell as any).master || cell;
+      target.value = { formula };
+    };
     const clearCell = (ws: ExcelJS.Worksheet, r: number, c: number) => {
       const cell = ws.getCell(r, c);
       const target = (cell as any).master || cell;
@@ -331,11 +352,43 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
     const grandTotalHolidayRow = grandTotalHeaderRow + 4;
     const grandTotalAllDaysRow = grandTotalHeaderRow + 6;
 
-    // Sheet1 header
-    setCell(ws1, 7, 4, profile.name);
-    setCell(ws1, 8, 4, profile.employeeId);
+    // Sheet1 profile mapping (manual date anchor in T17)
+    setCellBlank(ws1, 7, 4, profile.name);
+    setCellBlank(ws1, 8, 4, profile.employeeId);
+    setCellBlank(ws1, 9, 4, 'Canara Bank');
+    setCellBlank(ws1, 10, 4, profile.zi);
+    setCellBlank(ws1, 11, 4, profile.unit);
+    setCellBlank(ws1, 12, 4, profile.unit);
+    setCellBlank(ws1, 8, 17, profile.addressLine1);
+    setCellBlank(ws1, 9, 17, profile.addressLine2);
+    setCellBlank(ws1, 10, 17, profile.addressLine3);
+    setCellBlank(ws1, 17, 14, ''); // N17 blank for post-download manual entry
+    setCellBlank(ws1, 17, 20, ''); // T17 blank manual date anchor
+    setCellBlank(ws1, 106, 4, profile.unit);
+    setFormula(ws1, 107, 4, 'IF(T17="","",T17)');
+
+    // Existing report month/total placement
     setCell(ws1, 22, 17, selectedMonthLabel, false);
     setCell(ws1, 22, 22, reportTotals.total, false);
+
+    // Sheet2 profile mapping
+    setCellBlank(ws2, 6, 4, profile.name); // D6
+    setCellBlank(ws2, 6, 8, profile.employeeId); // H6
+    setCellBlank(ws2, 6, 14, profile.designation); // N6
+    setCellBlank(ws2, 8, 8, profile.basicPay); // H8
+    setCellBlank(ws2, 6, 21, profile.unit); // U6
+    setCellBlank(ws2, 77, 3, profile.unit); // C77
+    setFormula(ws2, 4, 21, 'IF(Sheet1!T17="","",Sheet1!T17)'); // U4
+    setFormula(ws2, 78, 3, 'IF(Sheet1!T17="","",Sheet1!T17)'); // C78
+
+    // Sheet3 profile mapping
+    setCellBlank(ws3, 1, 3, profile.name); // C1
+    setCellBlank(ws3, 2, 3, profile.zi); // C2
+    setCellBlank(ws3, 3, 3, profile.unit); // C3
+    setCellBlank(ws3, 35, 2, profile.accountNumber); // B35
+    setCellBlank(ws3, 36, 2, profile.accountBranch); // B36
+    setCellBlank(ws3, 41, 3, profile.unit); // C41
+    setFormula(ws3, 42, 3, 'IF(Sheet1!T17="","",Sheet1!T17)'); // C42
 
     // Duty rows (uppercase strings)
     clearRange(ws1, dutyStartRow, 2, dutyEndRow, 25);
@@ -465,15 +518,14 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
       setCell(ws2, rRet, 15, '-', false);
     });
 
-    // Sheet3 totals (minimal)
-    setCell(ws3, 7, 18, reportTotals.travel, false);
-    setCell(ws3, 9, 18, reportTotals.lodging, false);
-    setCell(ws3, 11, 18, '-', false);
-    setCell(ws3, 13, 18, reportTotals.halting, false);
-    setCell(ws3, 15, 18, 0, false);
-    setCell(ws3, 20, 18, reportTotals.total, false);
-    setCell(ws3, 22, 18, 0, false);
-    setCell(ws3, 24, 18, reportTotals.total, false);
+    // Sheet3 formula-first:
+    // - keep template formulas for R7:R23
+    // - enforce R24 = R20-R22 as requested
+    // - keep R22 default as numeric 0 when it's not already formula-driven
+    if (!hasFormula(ws3, 22, 18)) {
+      ws3.getCell(22, 18).value = 0;
+    }
+    setFormula(ws3, 24, 18, 'R20-R22');
 
     // Apply borders to all table regions across sheets.
     const thinBorder: Partial<ExcelJS.Borders> = {
