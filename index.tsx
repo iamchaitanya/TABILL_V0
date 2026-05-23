@@ -345,9 +345,17 @@ const App = () => {
       };
     }
 
+    const now = new Date();
+    const fourMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+    const threshold = `${fourMonthsAgo.getFullYear()}-${String(fourMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
     const key = closureBranch.trim().toLowerCase();
     const rbiaForSelectedBranch = savedEntries
-      .filter(e => (e.inspectionType || '').toUpperCase() === 'RBIA' && (e.branch || '').trim().toLowerCase() === key)
+      .filter(e =>
+        (e.inspectionType || '').toUpperCase() === 'RBIA' &&
+        (e.branch || '').trim().toLowerCase() === key &&
+        e.date >= threshold &&
+        e.date <= reportGeneratedOn
+      )
       .sort((a, b) => a.date.localeCompare(b.date));
 
     if (!rbiaForSelectedBranch.length) {
