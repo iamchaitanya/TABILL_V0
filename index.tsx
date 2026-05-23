@@ -340,6 +340,7 @@ const App = () => {
         fourthSaturdays: [] as string[],
         holidays: [] as string[],
         leaves: [] as string[],
+        otherAuditsInSelectedBranch: [] as { date: string; branch: string; inspectionType: string }[],
         otherBranchWork: [] as { date: string; branch: string; inspectionType: string }[]
       };
     }
@@ -360,6 +361,7 @@ const App = () => {
         fourthSaturdays: [] as string[],
         holidays: [] as string[],
         leaves: [] as string[],
+        otherAuditsInSelectedBranch: [] as { date: string; branch: string; inspectionType: string }[],
         otherBranchWork: [] as { date: string; branch: string; inspectionType: string }[]
       };
     }
@@ -375,7 +377,9 @@ const App = () => {
     const fourthSaturdays: string[] = [];
     const holidays: string[] = [];
     const leaves: string[] = [];
+    const otherAuditsInSelectedBranch: { date: string; branch: string; inspectionType: string }[] = [];
     const otherBranchWork: { date: string; branch: string; inspectionType: string }[] = [];
+    const selectedBranchAuditSeen = new Set<string>();
     const otherBranchSeen = new Set<string>();
 
     allDates.forEach(d => {
@@ -428,7 +432,18 @@ const App = () => {
 
       const isNonRbiaAuditInSelectedBranch = branchKey === key && inspectionUpper !== 'RBIA';
       const isWorkInOtherBranch = branchKey !== key;
-      if (branch && (isWorkInOtherBranch || isNonRbiaAuditInSelectedBranch)) {
+      if (branch && isNonRbiaAuditInSelectedBranch) {
+        const rowKey = `${d}::${branchKey}::${inspectionUpper}`;
+        if (!selectedBranchAuditSeen.has(rowKey)) {
+          selectedBranchAuditSeen.add(rowKey);
+          otherAuditsInSelectedBranch.push({
+            date: d,
+            branch,
+            inspectionType: inspectionType || '-'
+          });
+        }
+      }
+      if (branch && isWorkInOtherBranch) {
         const rowKey = `${d}::${branchKey}::${inspectionUpper}`;
         if (!otherBranchSeen.has(rowKey)) {
           otherBranchSeen.add(rowKey);
@@ -451,6 +466,7 @@ const App = () => {
       fourthSaturdays,
       holidays,
       leaves,
+      otherAuditsInSelectedBranch,
       otherBranchWork
     };
   }, [closureBranch, closureBranchOptions.length, reportGeneratedOn, savedEntries]);
@@ -570,6 +586,7 @@ const App = () => {
             fourthSaturdays={rbiaClosureData.fourthSaturdays}
             holidays={rbiaClosureData.holidays}
             leaves={rbiaClosureData.leaves}
+            otherAuditsInSelectedBranch={rbiaClosureData.otherAuditsInSelectedBranch}
             otherBranchWork={rbiaClosureData.otherBranchWork}
           />
         ) : (

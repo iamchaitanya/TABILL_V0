@@ -21,6 +21,7 @@ interface RbiaClosurePageProps {
   fourthSaturdays: string[];
   holidays: string[];
   leaves: string[];
+  otherAuditsInSelectedBranch: OtherBranchWorkRow[];
   otherBranchWork: OtherBranchWorkRow[];
 }
 
@@ -61,6 +62,7 @@ export const RbiaClosurePage: React.FC<RbiaClosurePageProps> = ({
   fourthSaturdays,
   holidays,
   leaves,
+  otherAuditsInSelectedBranch,
   otherBranchWork
 }) => {
   return (
@@ -118,7 +120,40 @@ export const RbiaClosurePage: React.FC<RbiaClosurePageProps> = ({
 
               <section className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Other Audits in Selected Branch + Work in Other Branches</h3>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Other Audits in Selected Branch</h3>
+                  <span className="text-[10px] font-black px-2 py-1 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300">
+                    {otherAuditsInSelectedBranch.length}
+                  </span>
+                </div>
+                {otherAuditsInSelectedBranch.length ? (
+                  <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-800">
+                    <table className="min-w-full text-left text-[11px]">
+                      <thead className="bg-slate-100 dark:bg-slate-800/60 text-slate-600 dark:text-slate-400 uppercase tracking-[0.15em]">
+                        <tr>
+                          <th className="px-3 py-2">Date</th>
+                          <th className="px-3 py-2">Branch</th>
+                          <th className="px-3 py-2">Work Type</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                        {otherAuditsInSelectedBranch.map((row, idx) => (
+                          <tr key={`${row.date}-${row.branch}-${idx}`} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
+                            <td className="px-3 py-2 font-bold text-slate-800 dark:text-slate-100">{formatDateLabel(row.date)}</td>
+                            <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.branch}</td>
+                            <td className="px-3 py-2 font-bold text-slate-700 dark:text-slate-200">{row.inspectionType || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">No non-RBIA audits found in selected branch for this period.</p>
+                )}
+              </section>
+
+              <section className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Work Conducted in Other Branches</h3>
                   <span className="text-[10px] font-black px-2 py-1 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300">
                     {otherBranchWork.length}
                   </span>
@@ -145,7 +180,7 @@ export const RbiaClosurePage: React.FC<RbiaClosurePageProps> = ({
                     </table>
                   </div>
                 ) : (
-                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">No non-RBIA audits in selected branch or work in other branches found for this period.</p>
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">No work in other branches found for this period.</p>
                 )}
               </section>
             </>
