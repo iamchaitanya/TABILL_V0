@@ -345,20 +345,16 @@ const App = () => {
       };
     }
 
-    const now = new Date();
-    const fourMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-    const threshold = `${fourMonthsAgo.getFullYear()}-${String(fourMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
     const key = closureBranch.trim().toLowerCase();
-    const rbiaForSelectedBranch = savedEntries
+    const rbiaEntriesForSelectedBranch = savedEntries
       .filter(e =>
         (e.inspectionType || '').toUpperCase() === 'RBIA' &&
         (e.branch || '').trim().toLowerCase() === key &&
-        e.date >= threshold &&
         e.date <= reportGeneratedOn
       )
       .sort((a, b) => a.date.localeCompare(b.date));
 
-    if (!rbiaForSelectedBranch.length) {
+    if (!rbiaEntriesForSelectedBranch.length) {
       return {
         startDate: null as string | null,
         endDate: reportGeneratedOn,
@@ -374,8 +370,20 @@ const App = () => {
       };
     }
 
+    const lastRbiaDate = rbiaEntriesForSelectedBranch[rbiaEntriesForSelectedBranch.length - 1].date;
+    const [ly, lm, ld] = lastRbiaDate.split('-').map(Number);
+    const windowStartDate = new Date(ly, lm - 1 - 4, 1);
+    const daysInWindowStartMonth = new Date(windowStartDate.getFullYear(), windowStartDate.getMonth() + 1, 0).getDate();
+    windowStartDate.setDate(Math.min(ld, daysInWindowStartMonth));
+    const windowStart = `${windowStartDate.getFullYear()}-${String(windowStartDate.getMonth() + 1).padStart(2, '0')}-${String(windowStartDate.getDate()).padStart(2, '0')}`;
+
+    const rbiaForSelectedBranch = rbiaEntriesForSelectedBranch
+      .filter(e => e.date >= windowStart && e.date <= lastRbiaDate)
+      .sort((a, b) => a.date.localeCompare(b.date));
+
     const startDate = rbiaForSelectedBranch[0].date;
-    const allDates = generateDateRange(startDate, reportGeneratedOn);
+    const endDate = lastRbiaDate;
+    const allDates = generateDateRange(startDate, endDate);
     const entriesByDate = new Map(savedEntries.map(e => [e.date, e]));
     const rbiaDateSet = new Set(rbiaForSelectedBranch.map(e => e.date));
 
@@ -466,7 +474,7 @@ const App = () => {
 
     return {
       startDate,
-      endDate: reportGeneratedOn,
+      endDate,
       error: null as string | null,
       rbiaDates,
       sundays,
