@@ -258,7 +258,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
   }, [manDaysTotal, leaveTotal, holidayTotal]);
 
   const downloadExcel = async () => {
-    const resp = await fetch('/Template.xlsx');
+    const resp = await fetch('/Template.xlsx?v=2026-05-23', { cache: 'no-store' });
     const arrayBuf = await resp.arrayBuffer();
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(arrayBuf);

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabill-v1';
+const CACHE_NAME = 'tabill-v2';
 const OFFLINE_URL = 'index.html';
 
 const ASSETS_TO_CACHE = [
@@ -39,6 +39,14 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  const url = new URL(event.request.url);
+
+  // Always prefer network for Excel template so users get the latest version.
+  if (url.pathname === '/Template.xlsx') {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(() => {
