@@ -353,6 +353,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
     const grandTotalAllDaysRow = grandTotalHeaderRow + 6;
 
     // Sheet1 profile mapping (manual date anchor in T17)
+    setFormula(ws1, 17, 2, '"Zonal Inspectorate,"&D10');
     setCellBlank(ws1, 7, 4, profile.name);
     setCellBlank(ws1, 8, 4, profile.employeeId);
     setCellBlank(ws1, 9, 4, 'Canara Bank');
@@ -378,6 +379,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
     setCellBlank(ws2, 8, 8, profile.basicPay); // H8
     setCellBlank(ws2, 6, 21, profile.unit); // U6
     setCellBlank(ws2, 77, 3, profile.unit); // C77
+    setFormula(ws2, 4, 2, '"MONTHLY DIARY-CUM-TA AND CONVEYANCE CHARGES BLL FOR THE MONTH OF: "&Sheet1!Q22'); // B4
     setFormula(ws2, 4, 21, 'IF(Sheet1!T17="","",Sheet1!T17)'); // U4
     setFormula(ws2, 78, 3, 'IF(Sheet1!T17="","",Sheet1!T17)'); // C78
 

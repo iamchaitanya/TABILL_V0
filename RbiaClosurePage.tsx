@@ -118,7 +118,7 @@ export const RbiaClosurePage: React.FC<RbiaClosurePageProps> = ({
 
               <section className="mt-4 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Work Conducted in Other Branches</h3>
+                  <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-200">Other Audits in Selected Branch + Work in Other Branches</h3>
                   <span className="text-[10px] font-black px-2 py-1 rounded-full bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300">
                     {otherBranchWork.length}
                   </span>
@@ -145,7 +145,7 @@ export const RbiaClosurePage: React.FC<RbiaClosurePageProps> = ({
                     </table>
                   </div>
                 ) : (
-                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">No work in other branches found for this period.</p>
+                  <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400">No non-RBIA audits in selected branch or work in other branches found for this period.</p>
                 )}
               </section>
             </>
@@ -155,4 +155,3 @@ export const RbiaClosurePage: React.FC<RbiaClosurePageProps> = ({
     </div>
   );
 };
-

@@ -13,6 +13,8 @@ import { RbiaClosurePage } from './RbiaClosurePage';
 const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  const SECURITY_CREDENTIAL_LABELS = ['CBS', 'DMS', 'HRMS', 'ELEARNING'] as const;
+  const normalizeCredentialKey = (label: string) => label.toUpperCase().replace(/[^A-Z]/g, '');
 
   // --- State ---
   const [activeTab, setActiveTab] = useState<AppTab>('entries');
@@ -50,11 +52,8 @@ const App = () => {
     credentials: [
       { id: generateId(), label: 'CBS', value: '' },
       { id: generateId(), label: 'DMS', value: '' },
-      { id: generateId(), label: 'SAS', value: '' },
-      { id: generateId(), label: 'DARPAN', value: '' },
-      { id: generateId(), label: 'CONCURRENT', value: '' },
       { id: generateId(), label: 'HRMS', value: '' },
-      { id: generateId(), label: 'LEARNING', value: '' }
+      { id: generateId(), label: 'ELEARNING', value: '' }
     ]
   });
 
@@ -103,19 +102,23 @@ const App = () => {
     if (savedProfile) {
       try { 
         const parsedProfile = JSON.parse(savedProfile);
-        
-        // Ensure credentials exist and include new defaults (DARPAN, CONCURRENT, HRMS, LEARNING)
-        const defaultLabels = ['CBS', 'DMS', 'SAS', 'DARPAN', 'CONCURRENT', 'HRMS', 'LEARNING'];
-        if (!parsedProfile.credentials) {
-            parsedProfile.credentials = defaultLabels.map(l => ({ id: generateId(), label: l, value: '' }));
-        } else {
-            const existingLabels = parsedProfile.credentials.map((c: any) => c.label);
-            defaultLabels.forEach(l => {
-                if (!existingLabels.includes(l)) {
-                    parsedProfile.credentials.push({ id: generateId(), label: l, value: '' });
-                }
-            });
-        }
+
+        // Keep only requested security credentials and preserve any existing values when possible.
+        const existingCredentials = Array.isArray(parsedProfile.credentials) ? parsedProfile.credentials : [];
+        const valueByKey = new Map<string, string>();
+        existingCredentials.forEach((cred: any) => {
+          const label = String(cred?.label || '');
+          const value = String(cred?.value || '');
+          const key = normalizeCredentialKey(label);
+          if (key) valueByKey.set(key, value);
+        });
+
+        parsedProfile.credentials = SECURITY_CREDENTIAL_LABELS.map(label => {
+          const key = normalizeCredentialKey(label);
+          const fallbackKeys = key === 'ELEARNING' ? ['LEARNING'] : [];
+          const preserved = valueByKey.get(key) ?? fallbackKeys.map(k => valueByKey.get(k)).find(Boolean) ?? '';
+          return { id: generateId(), label, value: preserved };
+        });
 
         setProfile(prev => ({ ...prev, ...parsedProfile })); 
       } catch (e) {}
@@ -423,7 +426,9 @@ const App = () => {
         return;
       }
 
-      if (branch && branchKey !== key) {
+      const isNonRbiaAuditInSelectedBranch = branchKey === key && inspectionUpper !== 'RBIA';
+      const isWorkInOtherBranch = branchKey !== key;
+      if (branch && (isWorkInOtherBranch || isNonRbiaAuditInSelectedBranch)) {
         const rowKey = `${d}::${branchKey}::${inspectionUpper}`;
         if (!otherBranchSeen.has(rowKey)) {
           otherBranchSeen.add(rowKey);
