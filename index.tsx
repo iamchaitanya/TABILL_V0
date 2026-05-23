@@ -292,7 +292,13 @@ const App = () => {
     const threshold = `${fourMonthsAgo.getFullYear()}-${String(fourMonthsAgo.getMonth() + 1).padStart(2, '0')}-01`;
     const uniq = new Map<string, string>();
     savedEntries.forEach(e => {
-      if ((e.inspectionType || '').toUpperCase() === 'RBIA' && e.date >= threshold && e.date <= reportGeneratedOn) {
+      if (
+        (e.inspectionType || '').toUpperCase() === 'RBIA' &&
+        e.dayStatus === 'Inspection' &&
+        !isHolidayStr(e.date) &&
+        e.date >= threshold &&
+        e.date <= reportGeneratedOn
+      ) {
         const b = (e.branch || '').trim();
         if (b && !uniq.has(b.toLowerCase())) uniq.set(b.toLowerCase(), b);
       }
@@ -349,6 +355,8 @@ const App = () => {
     const rbiaEntriesForSelectedBranch = savedEntries
       .filter(e =>
         (e.inspectionType || '').toUpperCase() === 'RBIA' &&
+        e.dayStatus === 'Inspection' &&
+        !isHolidayStr(e.date) &&
         (e.branch || '').trim().toLowerCase() === key &&
         e.date <= reportGeneratedOn
       )
