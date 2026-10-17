@@ -516,6 +516,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
 
     // Sheet3 expense summary in the revised template.
     // R is the amount claimed column; T is reserved for sanctioning authority.
+    setFormula(ws3, 9, 7, 'SUM(G7:G8)');
     setCell(ws3, 7, 18, reportTotals.travel, false);
     setCell(ws3, 9, 18, reportTotals.lodging, false);
     setCell(ws3, 11, 18, 0, false);
