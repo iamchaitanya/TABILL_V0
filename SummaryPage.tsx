@@ -287,12 +287,6 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
         target.value = val;
       }
     };
-    const hasFormula = (ws: ExcelJS.Worksheet, r: number, c: number) => {
-      const cell = ws.getCell(r, c);
-      const target = (cell as any).master || cell;
-      const value = target.value as any;
-      return Boolean(value && typeof value === 'object' && 'formula' in value);
-    };
     const setFormula = (ws: ExcelJS.Worksheet, r: number, c: number, formula: string) => {
       const cell = ws.getCell(r, c);
       const target = (cell as any).master || cell;
@@ -520,13 +514,17 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
       setCell(ws2, rRet, 15, '-', false);
     });
 
-    // Sheet3 formula-first:
-    // - keep template formulas for R7:R23
-    // - enforce R24 = R20-R22 as requested
-    // - keep R22 default as numeric 0 when it's not already formula-driven
-    if (!hasFormula(ws3, 22, 18)) {
-      ws3.getCell(22, 18).value = 0;
-    }
+    // Sheet3 expense summary in the revised template.
+    // R is the amount claimed column; T is reserved for sanctioning authority.
+    setCell(ws3, 7, 18, reportTotals.travel, false);
+    setCell(ws3, 9, 18, reportTotals.lodging, false);
+    setCell(ws3, 11, 18, 0, false);
+    setCell(ws3, 13, 18, reportTotals.halting, false);
+    setCell(ws3, 15, 18, 0, false);
+    setCell(ws3, 17, 18, 0, false);
+    setCell(ws3, 19, 18, 0, false);
+    setFormula(ws3, 20, 18, 'SUM(R7:R19)');
+    setCell(ws3, 22, 18, 0, false);
     setFormula(ws3, 24, 18, 'R20-R22');
 
     // Apply borders to all table regions across sheets.
@@ -551,7 +549,7 @@ export const SummaryPage: React.FC<SummaryPageProps> = ({
     applyBorderRange(ws1, grandTotalHeaderRow + 1, 2, grandTotalAllDaysRow, 25);
     applyBorderRange(ws1, localConveyanceHeaderRow + 1, 2, localConveyanceHeaderRow + 2, 25);
     applyBorderRange(ws2, 9, 2, 75, 18);
-    applyBorderRange(ws3, 5, 2, 32, 18);
+    // Sheet3 uses the revised template's own borders and merged signature blocks.
 
     const ws4 = wb.getWorksheet('Sheet4');
     if (ws4 && ws4.rowCount > 0 && ws4.columnCount > 0) {
