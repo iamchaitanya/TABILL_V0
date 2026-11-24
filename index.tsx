@@ -9,6 +9,18 @@ import { ReportPage } from './ReportPage';
 import { SummaryPage } from './SummaryPage';
 import { ProfilePage } from './ProfilePage';
 import { RbiaClosurePage } from './RbiaClosurePage';
+import { supabase, isCloudConfigured, signInWithGoogle, signOutCloud } from './supabase';
+import {
+  pullSnapshot,
+  pushSnapshot,
+  mergeRemoteEntries,
+  mergeProfiles,
+  isLocalEmpty,
+  isRemoteEmpty,
+} from './cloud';
+import { getOrCreateTourId, loadSyncMeta, saveSyncMeta, setStoredTourId } from './storage';
+import type { SyncMeta, SyncState } from './types';
+import type { Session } from '@supabase/supabase-js';
 
 const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -82,6 +94,26 @@ const App = () => {
   const [showRbiaClosurePage, setShowRbiaClosurePage] = useState(false);
   const [closureBranch, setClosureBranch] = useState<string>('');
 
+  // --- Cloud sync ---
+  const [hydrated, setHydrated] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
+  const [syncState, setSyncState] = useState<SyncState>('signed-out');
+  const [syncMessage, setSyncMessage] = useState<string | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => loadSyncMeta().lastSyncedAt ?? null);
+
+  const tourIdRef = useRef<string>(getOrCreateTourId());
+  const metaRef = useRef<SyncMeta>(loadSyncMeta());
+  const dataRef = useRef(data);
+  const profileRef = useRef(profile);
+  const sessionRef = useRef<Session | null>(null);
+  const syncingRef = useRef(false);
+  const applyingRemoteRef = useRef(false);
+  const pushTimerRef = useRef<number | null>(null);
+
+  useEffect(() => { dataRef.current = data; }, [data]);
+  useEffect(() => { profileRef.current = profile; }, [profile]);
+  useEffect(() => { sessionRef.current = session; }, [session]);
+
   // --- Theme Sync ---
   useEffect(() => {
     if (isDarkMode) {
@@ -123,10 +155,148 @@ const App = () => {
         setProfile(prev => ({ ...prev, ...parsedProfile })); 
       } catch (e) {}
     }
+    setHydrated(true);
   }, []);
 
-  useEffect(() => localStorage.setItem('iotabill_data', JSON.stringify(data)), [data]);
-  useEffect(() => localStorage.setItem('iotabill_profile', JSON.stringify(profile)), [profile]);
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem('iotabill_data', JSON.stringify(data));
+  }, [data, hydrated]);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    localStorage.setItem('iotabill_profile', JSON.stringify(profile));
+  }, [profile, hydrated]);
+
+  // --- Cloud session ---
+  useEffect(() => {
+    if (!supabase) return;
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setSession(data.session);
+    });
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+    return () => {
+      cancelled = true;
+      subscription.subscription.unsubscribe();
+    };
+  }, []);
+
+  const runSync = async (mode: 'initial' | 'now' = 'now') => {
+    const currentSession = sessionRef.current;
+    if (!supabase || !currentSession || syncingRef.current) return;
+    syncingRef.current = true;
+    setSyncState('syncing');
+    setSyncMessage(null);
+    try {
+      const userId = currentSession.user.id;
+      const remote = await pullSnapshot(userId);
+      let nextData = dataRef.current;
+
+      if (remote.tour) {
+        tourIdRef.current = remote.tour.id;
+        setStoredTourId(remote.tour.id);
+      }
+
+      if (mode === 'initial' && !isRemoteEmpty(remote)) {
+        if (isLocalEmpty(profileRef.current, nextData)) {
+          const merged = mergeRemoteEntries({ ...nextData, entries: [] }, remote.entries, { entries: {} });
+          metaRef.current = merged.meta;
+          if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
+          if (remote.tour) {
+            nextData = {
+              ...nextData,
+              tourName: remote.tour.name || nextData.tourName,
+              startDate: remote.tour.start_date || nextData.startDate,
+              endDate: remote.tour.end_date || nextData.endDate,
+              currency: remote.tour.currency || nextData.currency,
+            };
+            setData(nextData);
+          }
+          if (remote.profile) {
+            const mergedProfile = mergeProfiles(profileRef.current, remote.profile.data);
+            profileRef.current = mergedProfile;
+            setProfile(mergedProfile);
+          }
+        } else {
+          const merged = mergeRemoteEntries(nextData, remote.entries, metaRef.current);
+          metaRef.current = merged.meta;
+          if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
+          if (remote.profile) {
+            const mergedProfile = mergeProfiles(profileRef.current, remote.profile.data);
+            profileRef.current = mergedProfile;
+            setProfile(mergedProfile);
+          }
+        }
+      } else {
+        const merged = mergeRemoteEntries(nextData, remote.entries, metaRef.current);
+        metaRef.current = merged.meta;
+        if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
+        if (remote.profile) {
+          const mergedProfile = mergeProfiles(profileRef.current, remote.profile.data);
+          profileRef.current = mergedProfile;
+          setProfile(mergedProfile);
+        }
+      }
+
+      const nextMeta = await pushSnapshot(userId, tourIdRef.current, nextData, profileRef.current, metaRef.current);
+      metaRef.current = nextMeta;
+      saveSyncMeta(nextMeta);
+      setLastSyncedAt(nextMeta.lastSyncedAt ?? new Date().toISOString());
+      setSyncState('synced');
+    } catch (e: any) {
+      setSyncState('error');
+      setSyncMessage(e?.message || 'Sync failed.');
+    } finally {
+      syncingRef.current = false;
+      setTimeout(() => { applyingRemoteRef.current = false; }, 0);
+    }
+  };
+
+  useEffect(() => {
+    if (!session || !hydrated) return;
+    void runSync('initial');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session, hydrated]);
+
+  useEffect(() => {
+    if (!session || !hydrated || !supabase || applyingRemoteRef.current) return;
+    if (pushTimerRef.current) window.clearTimeout(pushTimerRef.current);
+    pushTimerRef.current = window.setTimeout(() => { void runSync('now'); }, 1500);
+    return () => {
+      if (pushTimerRef.current) window.clearTimeout(pushTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, profile, session, hydrated]);
+
+  useEffect(() => {
+    if (!session) return;
+    const refresh = () => {
+      if (document.visibilityState !== 'hidden') void runSync('now');
+    };
+    window.addEventListener('online', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.removeEventListener('online', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  // --- Cloud handlers ---
+  const handleSignIn = async () => {
+    await signInWithGoogle();
+  };
+
+  const handleSignOut = async () => {
+    await signOutCloud();
+    sessionRef.current = null;
+    setSession(null);
+    setSyncState('signed-out');
+    setSyncMessage(null);
+  };
 
   // --- Alert Timer ---
   useEffect(() => {
@@ -392,7 +562,7 @@ const App = () => {
     const startDate = rbiaForSelectedBranch[0].date;
     const endDate = lastRbiaDate;
     const allDates = generateDateRange(startDate, endDate);
-    const entriesByDate = new Map(savedEntries.map(e => [e.date, e]));
+    const entriesByDate = new Map<string, InspectionEntry>(savedEntries.map(e => [e.date, e] as const));
     const rbiaDateSet = new Set(rbiaForSelectedBranch.map(e => e.date));
 
     const rbiaDates: string[] = [];
@@ -650,6 +820,15 @@ const App = () => {
                 profile={profile} setProfile={setProfile}
                 data={data} setData={setData}
                 fileInputRef={fileInputRef} handleAvatarUpload={handleAvatarUpload}
+                cloudConfigured={isCloudConfigured}
+                accountEmail={session?.user?.email ?? null}
+                accountAvatar={(session?.user?.user_metadata?.avatar_url as string) ?? null}
+                syncState={syncState}
+                syncMessage={syncMessage}
+                lastSyncedAt={lastSyncedAt}
+                onSignIn={handleSignIn}
+                onSignOut={handleSignOut}
+                onSyncNow={() => runSync('now')}
               />
             )}
           </>
@@ -700,3 +879,21 @@ const App = () => {
 };
 
 createRoot(document.getElementById('root')!).render(<App />);
+
+// Service worker: production only. In dev it served stale modules and blanked the app.
+if ('serviceWorker' in navigator) {
+  if (import.meta.env.PROD) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('SW registration failed: ', err);
+      });
+    });
+  } else {
+    window.addEventListener('load', async () => {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((r) => r.unregister()));
+      const keys = await caches.keys();
+      await Promise.all(keys.map((k) => caches.delete(k)));
+    });
+  }
+}

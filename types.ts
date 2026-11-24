@@ -54,6 +54,8 @@ export interface UserProfile {
   accountNumber: string;
   accountBranch: string;
   credentials: CredentialItem[];
+  /** ISO timestamp of the last credential change, used for last-write-wins sync. */
+  credentialsUpdatedAt?: string;
 }
 
 export interface TourData {
@@ -65,3 +67,16 @@ export interface TourData {
 }
 
 export type AppTab = 'entries' | 'report' | 'summary' | 'profile';
+
+/** Cloud sync status shown on the profile page. */
+export type SyncState = 'signed-out' | 'idle' | 'syncing' | 'synced' | 'error';
+
+export interface SyncMetaEntry {
+  pushedAt: string;
+  json: string;
+}
+
+export interface SyncMeta {
+  entries: Record<string, SyncMetaEntry>;
+  lastSyncedAt?: string;
+}
