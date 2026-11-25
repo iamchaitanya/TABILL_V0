@@ -3,6 +3,9 @@
   "target": {
     "namespace": "android_app",
     "package_name": "com.tabill.inspectorportal",
-    "sha256_cert_fingerprints": ["1B:0C:F2:21:27:78:10:CE:F9:C8:C0:26:78:5B:DE:F1:BA:7A:45:2B:19:1A:B1:97:4E:98:17:11:28:93:B0:C6"]
+    "sha256_cert_fingerprints": [
+      "3B:B3:37:39:67:BA:00:78:DF:BF:37:F8:96:08:74:DF:7F:19:01:66:1B:81:C9:8A:8D:4E:FC:0D:75:72:F3:6A",
+      "1B:0C:F2:21:27:78:10:CE:F9:C8:C0:26:78:5B:DE:F1:BA:7A:45:2B:19:1A:B1:97:4E:98:17:11:28:93:B0:C6"
+    ]
   }
 }]
