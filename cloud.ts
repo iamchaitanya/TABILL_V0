@@ -94,20 +94,25 @@ export function mergeProfiles(local: UserProfile, remoteData: any): UserProfile 
     ? valuesByCredentialLabel(local.credentials, remoteCredentials)
     : local.credentials;
 
+  let result: UserProfile;
   if (local.name.trim() || local.employeeId.trim()) {
-    return {
+    result = {
       ...local,
       credentials,
       credentialsUpdatedAt: takeRemoteValues
         ? remoteData.credentialsUpdatedAt ?? local.credentialsUpdatedAt
         : local.credentialsUpdatedAt,
     };
+  } else {
+    const { credentials: _remoteCredentials, credentialsUpdatedAt: _remoteAt, ...rest } = remoteData;
+    void _remoteCredentials;
+    void _remoteAt;
+    result = { ...local, ...rest, credentials };
   }
 
-  const { credentials: _remoteCredentials, credentialsUpdatedAt: _remoteAt, ...rest } = remoteData;
-  void _remoteCredentials;
-  void _remoteAt;
-  return { ...local, ...rest, credentials };
+  // Preserve object identity when nothing changed — callers use it to avoid
+  // re-triggering debounced syncs.
+  return JSON.stringify(result) === JSON.stringify(local) ? local : result;
 }
 
 export async function pullSnapshot(userId: string): Promise<RemoteSnapshot> {

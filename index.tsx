@@ -109,6 +109,8 @@ const App = () => {
   const syncingRef = useRef(false);
   const applyingRemoteRef = useRef(false);
   const pushTimerRef = useRef<number | null>(null);
+  /** JSON of the last state actually pushed, so identical state never re-syncs. */
+  const lastPushedRef = useRef<string | null>(null);
 
   useEffect(() => { dataRef.current = data; }, [data]);
   useEffect(() => { profileRef.current = profile; }, [profile]);
@@ -184,6 +186,17 @@ const App = () => {
     };
   }, []);
 
+  /**
+   * Only replace the profile when the merged copy really differs. Without this,
+   * every sync produced a new object identity, re-triggering the push effect in
+   * an endless ~1.5s loop.
+   */
+  const commitRemoteProfile = (next: UserProfile) => {
+    if (JSON.stringify(next) === JSON.stringify(profileRef.current)) return;
+    profileRef.current = next;
+    setProfile(next);
+  };
+
   const runSync = async (mode: 'initial' | 'now' = 'now') => {
     const currentSession = sessionRef.current;
     if (!supabase || !currentSession || syncingRef.current) return;
@@ -216,18 +229,14 @@ const App = () => {
             setData(nextData);
           }
           if (remote.profile) {
-            const mergedProfile = mergeProfiles(profileRef.current, remote.profile.data);
-            profileRef.current = mergedProfile;
-            setProfile(mergedProfile);
+            commitRemoteProfile(mergeProfiles(profileRef.current, remote.profile.data));
           }
         } else {
           const merged = mergeRemoteEntries(nextData, remote.entries, metaRef.current);
           metaRef.current = merged.meta;
           if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
           if (remote.profile) {
-            const mergedProfile = mergeProfiles(profileRef.current, remote.profile.data);
-            profileRef.current = mergedProfile;
-            setProfile(mergedProfile);
+            commitRemoteProfile(mergeProfiles(profileRef.current, remote.profile.data));
           }
         }
       } else {
@@ -235,15 +244,14 @@ const App = () => {
         metaRef.current = merged.meta;
         if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
         if (remote.profile) {
-          const mergedProfile = mergeProfiles(profileRef.current, remote.profile.data);
-          profileRef.current = mergedProfile;
-          setProfile(mergedProfile);
+          commitRemoteProfile(mergeProfiles(profileRef.current, remote.profile.data));
         }
       }
 
       const nextMeta = await pushSnapshot(userId, tourIdRef.current, nextData, profileRef.current, metaRef.current);
       metaRef.current = nextMeta;
       saveSyncMeta(nextMeta);
+      lastPushedRef.current = JSON.stringify({ data: nextData, profile: profileRef.current });
       setLastSyncedAt(nextMeta.lastSyncedAt ?? new Date().toISOString());
       setSyncState('synced');
     } catch (e: any) {
@@ -263,8 +271,20 @@ const App = () => {
 
   useEffect(() => {
     if (!session || !hydrated || !supabase || applyingRemoteRef.current) return;
+    if (JSON.stringify({ data, profile }) === lastPushedRef.current) {
+      if (pushTimerRef.current) {
+        window.clearTimeout(pushTimerRef.current);
+        pushTimerRef.current = null;
+      }
+      return;
+    }
     if (pushTimerRef.current) window.clearTimeout(pushTimerRef.current);
-    pushTimerRef.current = window.setTimeout(() => { void runSync('now'); }, 1500);
+    pushTimerRef.current = window.setTimeout(() => {
+      // The state may have been pushed by another sync while the timer waited.
+      const current = JSON.stringify({ data: dataRef.current, profile: profileRef.current });
+      if (current === lastPushedRef.current) return;
+      void runSync('now');
+    }, 1500);
     return () => {
       if (pushTimerRef.current) window.clearTimeout(pushTimerRef.current);
     };
