@@ -1,4 +1,4 @@
-const CACHE_NAME = 'tabill-v5';
+const CACHE_NAME = 'tabill-v6';
 const OFFLINE_URL = 'index.html';
 
 const ASSETS_TO_CACHE = [
