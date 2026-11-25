@@ -1,30 +1,49 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy Policy - TA BILL</title>
-    <style> body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; line-height: 1.6; } h1 { color: #0d9488; } </style>
+    <style>
+        body { font-family: sans-serif; padding: 20px; max-width: 800px; margin: 0 auto; line-height: 1.6; color: #1e293b; }
+        h1 { color: #0d9488; }
+        h2 { color: #0f766e; margin-top: 28px; font-size: 1.1em; }
+        ul { padding-left: 22px; }
+        .muted { color: #64748b; font-size: 0.9em; }
+    </style>
 </head>
 <body>
     <h1>Privacy Policy for TA BILL</h1>
-    <p><strong>Last updated:</strong> January 2026</p>
-    
-    <p>This application ("TA BILL") is built for official use to manage Tour Allowances and Inspection Diaries.</p>
+    <p class="muted"><strong>Last updated:</strong> 25 November 2026</p>
 
-    <h2>1. Information We Collect</h2>
-    <p>We may collect or process the following types of data to provide the app's functionality:</p>
+    <p>TA BILL ("the app") is a tour allowance and inspection diary tool for official use. This policy explains what the app stores and who can see it.</p>
+
+    <h2>1. Information the app stores</h2>
     <ul>
-        <li><strong>Images and Files:</strong> The app allows you to upload photos or documents (e.g., for inspection reports or profile avatars). These files are processed securely and are used solely for the purpose of generating your official reports.</li>
-        <li><strong>Device Information:</strong> We may collect basic device data (like operating system version) to ensure the app runs correctly.</li>
+        <li><strong>Profile details:</strong> name, employee ID, contact details, address, designation, pay and bank-account fields you choose to enter.</li>
+        <li><strong>Inspection data:</strong> tour dates, branches, DP codes, journey and expense records you save.</li>
+        <li><strong>Service credentials:</strong> the CBS, DMS, HRMS and ELEARNING login details you enter in the "Passwords" section.</li>
+        <li><strong>Photos:</strong> a profile avatar you upload (resized on your device before storage).</li>
+        <li><strong>Google account information:</strong> if you sign in with Google, the app receives your email address, name and profile picture from Google.</li>
     </ul>
 
-    <h2>2. How We Use Your Information</h2>
-    <p>We do not sell your personal data. Your data is used exclusively for:</p>
-    <ul>
-        <li>Functionality: To create and export your travel allowance bills and diaries.</li>
-        <li>Storage: To save your reports for your own records.</li>
-    </ul>
+    <h2>2. Where the data lives</h2>
+    <p>The app works offline: your profile and inspection records are stored locally in your browser. If you sign in with Google, the same data is synchronised to a private account in Supabase (our database provider) so it is available on your other devices. The app is hosted on Cloudflare Pages.</p>
+    <p>Every database row belongs to your Google account and is protected by Row Level Security: only you can read or write your own rows. We use a public "publishable" key in the app; there is no secret key in the browser build.</p>
 
-    <h2>3. Contact Us</h2>
-    <p>If you have any questions about this Privacy Policy, please contact the developer.</p>
+    <h2>3. About your credentials</h2>
+    <p>The CBS / DMS / HRMS / ELEARNING details are stored as plain JSON inside your own profile row so they can follow your account between devices. They are protected by the same per-account access controls as the rest of your data and are <strong>not</strong> shared with other users, but they are not additionally encrypted at rest. Do not use this section for credentials whose exposure would be serious, and consider using a separate, limited-access account for these services.</p>
+
+    <h2>4. How we use your information</h2>
+    <p>We do not sell your personal data, and we do not use it for advertising. It is used only to provide the app: saving your records, generating reports, and syncing your own data across your devices.</p>
+
+    <h2>5. Sharing</h2>
+    <p>We do not share your data with other users or third parties, except the service providers needed to run the app: Google (sign-in), Supabase (database and authentication) and Cloudflare (hosting).</p>
+
+    <h2>6. Your choices and deletion</h2>
+    <p>Signing in is optional; without it the app remains fully usable and your data stays only in this browser. You can sign out at any time from the Profile page. Clearing your browser's site data removes the local copy. To have your cloud account and its data deleted, contact the developer using the address below.</p>
+
+    <h2>7. Contact</h2>
+    <p>If you have questions about this policy or want your data removed, please contact the developer of TA BILL.</p>
 </body>
 </html>

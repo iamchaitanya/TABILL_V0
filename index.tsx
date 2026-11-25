@@ -9,7 +9,7 @@ import { ReportPage } from './ReportPage';
 import { SummaryPage } from './SummaryPage';
 import { ProfilePage } from './ProfilePage';
 import { RbiaClosurePage } from './RbiaClosurePage';
-import { supabase, isCloudConfigured, signInWithGoogle, signOutCloud } from './supabase';
+import { supabase, signInWithGoogle, signOutCloud } from './supabase';
 import {
   pullSnapshot,
   pushSnapshot,
@@ -18,15 +18,71 @@ import {
   isLocalEmpty,
   isRemoteEmpty,
 } from './cloud';
-import { getOrCreateTourId, loadSyncMeta, saveSyncMeta, setStoredTourId } from './storage';
+import type { ProfileMergeOptions } from './cloud';
+import {
+  STORAGE_KEYS,
+  LOCAL_SCOPE,
+  safeGet,
+  scopedKey,
+  loadScoped,
+  saveScoped,
+  getOrCreateTourId,
+  setStoredTourId,
+  loadSyncMeta,
+  saveSyncMeta,
+  legacyPresent,
+  readLegacy,
+  moveLegacyToScope,
+  discardLegacy,
+  parseJson,
+} from './storage';
 import type { SyncMeta, SyncState } from './types';
 import type { Session } from '@supabase/supabase-js';
+
+const SECURITY_CREDENTIAL_LABELS = ['CBS', 'DMS', 'HRMS', 'ELEARNING'] as const;
+
+const makeEmptyProfile = (): UserProfile => ({
+  name: '',
+  bio: '',
+  homeCurrency: '',
+  avatar: null,
+  employeeId: '',
+  mobile: '',
+  email: '',
+  unit: '',
+  zi: '',
+  addressLine1: '',
+  addressLine2: '',
+  addressLine3: '',
+  designation: '',
+  basicPay: '',
+  accountNumber: '',
+  accountBranch: '',
+  credentials: SECURITY_CREDENTIAL_LABELS.map((label) => ({ id: generateId(), label, value: '' })),
+});
+
+const makeEmptyData = (): TourData => ({
+  tourName: 'Inspection Tour',
+  startDate: new Date().toISOString().split('T')[0],
+  endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+  currency: 'INR',
+  entries: [{
+    id: generateId(),
+    date: new Date().toISOString().split('T')[0],
+    branch: '',
+    dpCode: '',
+    inspectionType: 'RBIA',
+    onwardJourney: [],
+    returnJourney: [],
+    otherExpenses: [],
+    lastSavedAt: undefined,
+    dayStatus: 'Inspection',
+  }],
+});
 
 const App = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const toIsoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const SECURITY_CREDENTIAL_LABELS = ['CBS', 'DMS', 'HRMS', 'ELEARNING'] as const;
-  const normalizeCredentialKey = (label: string) => label.toUpperCase().replace(/[^A-Z]/g, '');
 
   // --- State ---
   const [activeTab, setActiveTab] = useState<AppTab>('entries');
@@ -44,49 +100,8 @@ const App = () => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
 
-  const [profile, setProfile] = useState<UserProfile>({
-    name: '',
-    bio: '',
-    homeCurrency: '',
-    avatar: null,
-    employeeId: '',
-    mobile: '',
-    email: '',
-    unit: '',
-    zi: '',
-    addressLine1: '',
-    addressLine2: '',
-    addressLine3: '',
-    designation: '',
-    basicPay: '',
-    accountNumber: '',
-    accountBranch: '',
-    credentials: [
-      { id: generateId(), label: 'CBS', value: '' },
-      { id: generateId(), label: 'DMS', value: '' },
-      { id: generateId(), label: 'HRMS', value: '' },
-      { id: generateId(), label: 'ELEARNING', value: '' }
-    ]
-  });
-
-  const [data, setData] = useState<TourData>({
-    tourName: 'Inspection Tour',
-    startDate: new Date().toISOString().split('T')[0],
-    endDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-    currency: 'INR',
-    entries: [{ 
-      id: generateId(), 
-      date: new Date().toISOString().split('T')[0], 
-      branch: '', 
-      dpCode: '', 
-      inspectionType: 'RBIA',
-      onwardJourney: [],
-      returnJourney: [],
-      otherExpenses: [],
-      lastSavedAt: undefined,
-      dayStatus: 'Inspection'
-    }],
-  });
+  const [profile, setProfile] = useState<UserProfile>(makeEmptyProfile);
+  const [data, setData] = useState<TourData>(makeEmptyData);
 
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [recentlySaved, setRecentlySaved] = useState<string | null>(null);
@@ -99,15 +114,19 @@ const App = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [syncState, setSyncState] = useState<SyncState>('signed-out');
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
-  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(() => loadSyncMeta().lastSyncedAt ?? null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(null);
 
-  const tourIdRef = useRef<string>(getOrCreateTourId());
-  const metaRef = useRef<SyncMeta>(loadSyncMeta());
+  /** localStorage namespace of the account currently shown in the UI. */
+  const scopeRef = useRef<string>(LOCAL_SCOPE);
+  const hydratedRef = useRef(false);
+  const initialResolvedRef = useRef(false);
+  const lastRefreshRef = useRef(0);
+  const tourIdRef = useRef<string>('');
+  const metaRef = useRef<SyncMeta>({ entries: {} });
   const dataRef = useRef(data);
   const profileRef = useRef(profile);
   const sessionRef = useRef<Session | null>(null);
   const syncingRef = useRef(false);
-  const applyingRemoteRef = useRef(false);
   const pushTimerRef = useRef<number | null>(null);
   /** JSON of the last state actually pushed, so identical state never re-syncs. */
   const lastPushedRef = useRef<string | null>(null);
@@ -126,64 +145,113 @@ const App = () => {
     localStorage.setItem('iotabill_darkmode', String(isDarkMode));
   }, [isDarkMode]);
 
-  // --- Persistence ---
-  useEffect(() => {
-    const savedTour = localStorage.getItem('iotabill_data');
-    const savedProfile = localStorage.getItem('iotabill_profile');
-    if (savedTour) {
-      try { setData(prev => ({ ...prev, ...JSON.parse(savedTour) })); } catch (e) {}
-    }
-    if (savedProfile) {
-      try { 
-        const parsedProfile = JSON.parse(savedProfile);
-
-        // Keep only requested security credentials and preserve any existing values when possible.
-        const existingCredentials = Array.isArray(parsedProfile.credentials) ? parsedProfile.credentials : [];
-        const valueByKey = new Map<string, string>();
-        existingCredentials.forEach((cred: any) => {
-          const label = String(cred?.label || '');
-          const value = String(cred?.value || '');
-          const key = normalizeCredentialKey(label);
-          if (key) valueByKey.set(key, value);
-        });
-
-        parsedProfile.credentials = SECURITY_CREDENTIAL_LABELS.map(label => {
-          const key = normalizeCredentialKey(label);
-          const fallbackKeys = key === 'ELEARNING' ? ['LEARNING'] : [];
-          const preserved = valueByKey.get(key) ?? fallbackKeys.map(k => valueByKey.get(k)).find(Boolean) ?? '';
-          return { id: generateId(), label, value: preserved };
-        });
-
-        setProfile(prev => ({ ...prev, ...parsedProfile })); 
-      } catch (e) {}
-    }
-    setHydrated(true);
-  }, []);
-
+  // --- Persistence (always scoped to the active account) ---
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem('iotabill_data', JSON.stringify(data));
+    saveScoped(STORAGE_KEYS.data, scopeRef.current, data);
   }, [data, hydrated]);
 
   useEffect(() => {
     if (!hydrated) return;
-    localStorage.setItem('iotabill_profile', JSON.stringify(profile));
+    saveScoped(STORAGE_KEYS.profile, scopeRef.current, profile);
   }, [profile, hydrated]);
+
+  /**
+   * Switch the UI and localStorage namespace when the signed-in account changes.
+   * State from the previous account is saved under its own key and never carried
+   * into the next account.
+   */
+  const applyScope = async (nextScope: string, nextSession: Session | null, initial: boolean) => {
+    if (initial) initialResolvedRef.current = true;
+
+    if (scopeRef.current === nextScope && hydratedRef.current) {
+      sessionRef.current = nextSession;
+      setSession(nextSession);
+      return;
+    }
+
+    // Persist any edits made under the previous account.
+    if (hydratedRef.current) {
+      saveScoped(STORAGE_KEYS.data, scopeRef.current, dataRef.current);
+      saveScoped(STORAGE_KEYS.profile, scopeRef.current, profileRef.current);
+      saveSyncMeta(scopeRef.current, metaRef.current);
+    }
+
+    let nextData = loadScoped<TourData>(STORAGE_KEYS.data, nextScope) ?? makeEmptyData();
+    let nextProfile = loadScoped<UserProfile>(STORAGE_KEYS.profile, nextScope) ?? makeEmptyProfile();
+    let nextMeta = loadSyncMeta(nextScope);
+    let nextTourId = safeGet(scopedKey(STORAGE_KEYS.tourId, nextScope)) ?? getOrCreateTourId(nextScope);
+
+    // One-time migration of the old unscoped keys. Adopt them only when they
+    // demonstrably belong to this account (or when signed out), so a different
+    // user on a shared device can never inherit someone else's data.
+    if (initial && legacyPresent()) {
+      let adopt = !nextSession;
+      if (nextSession && supabase) {
+        const remote = await pullSnapshot(nextSession.user.id).catch(() => null);
+        if (!remote || isRemoteEmpty(remote)) {
+          adopt = true;
+        } else {
+          const legacy = readLegacy<TourData>(STORAGE_KEYS.data);
+          adopt = Boolean(legacy?.entries.some(entry =>
+            remote.entries.some(row => row.id === entry.id)));
+        }
+      }
+      if (adopt) {
+        nextData = readLegacy<TourData>(STORAGE_KEYS.data) ?? nextData;
+        nextProfile = readLegacy<UserProfile>(STORAGE_KEYS.profile) ?? nextProfile;
+        nextMeta = readLegacy<SyncMeta>(STORAGE_KEYS.syncMeta) ?? nextMeta;
+        nextTourId = safeGet(STORAGE_KEYS.tourId) ?? nextTourId;
+        moveLegacyToScope(nextScope);
+      } else {
+        discardLegacy(nextScope);
+      }
+      // Re-read from the new namespace after the move.
+      nextData = loadScoped<TourData>(STORAGE_KEYS.data, nextScope) ?? nextData;
+      nextProfile = loadScoped<UserProfile>(STORAGE_KEYS.profile, nextScope) ?? nextProfile;
+      nextMeta = loadSyncMeta(nextScope);
+      nextTourId = safeGet(scopedKey(STORAGE_KEYS.tourId, nextScope)) ?? nextTourId;
+    }
+
+    scopeRef.current = nextScope;
+    dataRef.current = nextData;
+    profileRef.current = nextProfile;
+    metaRef.current = nextMeta;
+    tourIdRef.current = nextTourId;
+    lastPushedRef.current = null;
+    hydratedRef.current = true;
+    setHydrated(true);
+    setData(nextData);
+    setProfile(nextProfile);
+    sessionRef.current = nextSession;
+    setSession(nextSession);
+    setLastSyncedAt(nextMeta.lastSyncedAt ?? null);
+    setSyncState(nextSession ? 'idle' : 'signed-out');
+  };
 
   // --- Cloud session ---
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase) {
+      hydratedRef.current = true;
+      setHydrated(true);
+      return;
+    }
     let cancelled = false;
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) setSession(data.session);
+      if (!cancelled) {
+        void applyScope(data.session?.user?.id ?? LOCAL_SCOPE, data.session, true);
+      }
     });
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
+      // getSession() performs the one-time migration; ignore earlier events.
+      if (cancelled || !initialResolvedRef.current) return;
+      void applyScope(nextSession?.user?.id ?? LOCAL_SCOPE, nextSession, false);
     });
     return () => {
       cancelled = true;
       subscription.subscription.unsubscribe();
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
@@ -210,14 +278,32 @@ const App = () => {
 
       if (remote.tour) {
         tourIdRef.current = remote.tour.id;
-        setStoredTourId(remote.tour.id);
+        setStoredTourId(scopeRef.current, remote.tour.id);
       }
+
+      // Local-first: unsaved profile edits are never overwritten by a pull.
+      // Otherwise server timestamps decide which copy is newer — no device-clock LWW.
+      const pushed = lastPushedRef.current
+        ? parseJson<{ profile?: UserProfile }>(lastPushedRef.current)
+        : null;
+      const profileDirty = Boolean(pushed?.profile)
+        && JSON.stringify(pushed.profile) !== JSON.stringify(profileRef.current);
+      const profileMergeOptions: ProfileMergeOptions = {
+        remoteUpdatedAt: remote.profile?.updated_at,
+        localUpdatedAt: metaRef.current.profileUpdatedAt,
+        localDirty: profileDirty,
+      };
+      const applyProfile = () => {
+        if (remote.profile) {
+          commitRemoteProfile(mergeProfiles(profileRef.current, remote.profile.data, profileMergeOptions));
+        }
+      };
 
       if (mode === 'initial' && !isRemoteEmpty(remote)) {
         if (isLocalEmpty(profileRef.current, nextData)) {
           const merged = mergeRemoteEntries({ ...nextData, entries: [] }, remote.entries, { entries: {} });
           metaRef.current = merged.meta;
-          if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
+          if (merged.changed) { nextData = merged.data; setData(nextData); }
           if (remote.tour) {
             nextData = {
               ...nextData,
@@ -228,30 +314,25 @@ const App = () => {
             };
             setData(nextData);
           }
-          if (remote.profile) {
-            commitRemoteProfile(mergeProfiles(profileRef.current, remote.profile.data));
-          }
+          applyProfile();
         } else {
           const merged = mergeRemoteEntries(nextData, remote.entries, metaRef.current);
           metaRef.current = merged.meta;
-          if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
-          if (remote.profile) {
-            commitRemoteProfile(mergeProfiles(profileRef.current, remote.profile.data));
-          }
+          if (merged.changed) { nextData = merged.data; setData(nextData); }
+          applyProfile();
         }
       } else {
         const merged = mergeRemoteEntries(nextData, remote.entries, metaRef.current);
         metaRef.current = merged.meta;
-        if (merged.changed) { applyingRemoteRef.current = true; nextData = merged.data; setData(nextData); }
-        if (remote.profile) {
-          commitRemoteProfile(mergeProfiles(profileRef.current, remote.profile.data));
-        }
+        if (merged.changed) { nextData = merged.data; setData(nextData); }
+        applyProfile();
       }
 
       const nextMeta = await pushSnapshot(userId, tourIdRef.current, nextData, profileRef.current, metaRef.current);
       metaRef.current = nextMeta;
-      saveSyncMeta(nextMeta);
+      saveSyncMeta(scopeRef.current, nextMeta);
       lastPushedRef.current = JSON.stringify({ data: nextData, profile: profileRef.current });
+      lastRefreshRef.current = Date.now();
       setLastSyncedAt(nextMeta.lastSyncedAt ?? new Date().toISOString());
       setSyncState('synced');
     } catch (e: any) {
@@ -259,7 +340,6 @@ const App = () => {
       setSyncMessage(e?.message || 'Sync failed.');
     } finally {
       syncingRef.current = false;
-      setTimeout(() => { applyingRemoteRef.current = false; }, 0);
     }
   };
 
@@ -270,7 +350,7 @@ const App = () => {
   }, [session, hydrated]);
 
   useEffect(() => {
-    if (!session || !hydrated || !supabase || applyingRemoteRef.current) return;
+    if (!session || !hydrated || !supabase) return;
     if (JSON.stringify({ data, profile }) === lastPushedRef.current) {
       if (pushTimerRef.current) {
         window.clearTimeout(pushTimerRef.current);
@@ -294,7 +374,11 @@ const App = () => {
   useEffect(() => {
     if (!session) return;
     const refresh = () => {
-      if (document.visibilityState !== 'hidden') void runSync('now');
+      if (document.visibilityState === 'hidden') return;
+      // Avoid rewriting the cloud on every focus change / network blip.
+      if (Date.now() - lastRefreshRef.current < 15000) return;
+      lastRefreshRef.current = Date.now();
+      void runSync('now');
     };
     window.addEventListener('online', refresh);
     window.addEventListener('focus', refresh);
@@ -311,10 +395,8 @@ const App = () => {
   };
 
   const handleSignOut = async () => {
+    // onAuthStateChange switches to the local workspace and clears the view.
     await signOutCloud();
-    sessionRef.current = null;
-    setSession(null);
-    setSyncState('signed-out');
     setSyncMessage(null);
   };
 
@@ -700,14 +782,29 @@ const App = () => {
   }, [calendarViewDate]);
 
   const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfile(prev => ({ ...prev, avatar: reader.result as string }));
+    const input = e.target;
+    const file = input.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => {
+        // Downscale before storing: avatars are saved in localStorage and the
+        // cloud profile JSON, so a full-size photo can blow the quota.
+        const maxSide = 320;
+        const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        if (!context) return;
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        setProfile(prev => ({ ...prev, avatar: canvas.toDataURL('image/jpeg', 0.8) }));
       };
-      reader.readAsDataURL(file);
-    }
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+    input.value = '';
   };
 
   return (
@@ -838,9 +935,7 @@ const App = () => {
             {activeTab === 'profile' && (
               <ProfilePage 
                 profile={profile} setProfile={setProfile}
-                data={data} setData={setData}
                 fileInputRef={fileInputRef} handleAvatarUpload={handleAvatarUpload}
-                cloudConfigured={isCloudConfigured}
                 accountEmail={session?.user?.email ?? null}
                 accountAvatar={(session?.user?.user_metadata?.avatar_url as string) ?? null}
                 syncState={syncState}

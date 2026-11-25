@@ -1,15 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GoogleSignInButton } from './GoogleSignInButton';
-import { SyncState, UserProfile, TourData } from './types';
+import type { SyncState, UserProfile } from './types';
 
 interface ProfilePageProps {
   profile: UserProfile;
   setProfile: (p: UserProfile) => void;
-  data: TourData;
-  setData: (d: TourData) => void;
   fileInputRef: React.RefObject<HTMLInputElement>;
   handleAvatarUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  cloudConfigured: boolean;
   accountEmail: string | null;
   accountAvatar: string | null;
   syncState: SyncState;
@@ -73,7 +70,6 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
   setProfile,
   fileInputRef,
   handleAvatarUpload,
-  cloudConfigured,
   accountEmail,
   accountAvatar,
   syncState,
@@ -167,11 +163,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({
 
         {/* Google account / cloud sync */}
         <div className="w-full mt-8 space-y-3">
-          {!cloudConfigured ? (
-            <p className="text-center text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
-              Cloud sync is not configured
-            </p>
-          ) : accountEmail ? (
+          {accountEmail ? (
             <div className="rounded-2xl border border-teal-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/60 p-4 space-y-3">
               <div className="flex items-center gap-3">
                 {accountAvatar ? (

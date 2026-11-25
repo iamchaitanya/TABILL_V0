@@ -8,7 +8,7 @@ Row Level Security).
 
 ```bash
 npm install
-cp .env.example .env.local   # then fill in the two values
+cp .env.example .env.local   # optional: override any of the values below
 npm run dev                  # http://localhost:3000
 ```
 
@@ -20,6 +20,8 @@ publishable key compiled into `supabase.ts`, so cloud sync still works.
 ```
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_...
+# Optional — defaults to the TA BILL Google client baked into supabase.ts
+VITE_GOOGLE_CLIENT_ID=xxxxxxxxxxxxxxxxxxxxxxxx.apps.googleusercontent.com
 ```
 
 The app works fully offline; signing in is optional and only adds cloud sync.

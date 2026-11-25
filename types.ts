@@ -79,4 +79,10 @@ export interface SyncMetaEntry {
 export interface SyncMeta {
   entries: Record<string, SyncMetaEntry>;
   lastSyncedAt?: string;
+  /** Server timestamps returned by Supabase, used for conflict resolution. */
+  profileUpdatedAt?: string;
+  tourUpdatedAt?: string;
+  /** Snapshots of the last pushed tour/profile, so unchanged rows are not rewritten. */
+  profileJson?: string;
+  tourJson?: string;
 }
