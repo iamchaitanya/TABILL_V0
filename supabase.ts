@@ -43,6 +43,25 @@ export async function signInWithGoogle(): Promise<void> {
   if (error) throw error;
 }
 
+/**
+ * Google's own client ID, shared with the Supabase Google provider. Used by
+ * Google Identity Services so the consent screen shows this app instead of the
+ * Supabase redirect domain.
+ */
+export const googleClientId =
+  import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim() ||
+  '995880603989-fvbccu5c1d376siq5kh5f75tkb41j9ns.apps.googleusercontent.com';
+
+/**
+ * Exchanges a Google ID token (from Google Identity Services) for a Supabase
+ * session. No redirect to `*.supabase.co` is involved.
+ */
+export async function signInWithGoogleIdToken(idToken: string): Promise<void> {
+  if (!supabase) throw new Error('Cloud sync is not configured.');
+  const { error } = await supabase.auth.signInWithIdToken({ provider: 'google', token: idToken });
+  if (error) throw error;
+}
+
 export async function signOutCloud(): Promise<void> {
   if (!supabase) return;
   const { error } = await supabase.auth.signOut();

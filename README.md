@@ -37,6 +37,11 @@ If the env vars are absent the built-in project defaults are used.
 2. **Authentication → Sign In / Providers → Google**: paste your Google Cloud
    OAuth **Client ID** and **Client Secret**. Authorized redirect URI:
    `https://<project-ref>.supabase.co/auth/v1/callback`.
+   In the Google Cloud client also add **Authorized JavaScript origins**
+   `https://tabill.pages.dev` and `http://localhost:3000` — the app signs in with
+   Google Identity Services and exchanges the ID token via `signInWithIdToken`,
+   which keeps the consent screen on the app's own domain instead of
+   `*.supabase.co`.
 3. **Authentication → URL Configuration**: Site URL `https://tabill.pages.dev`,
    redirect allow list `http://localhost:3000,https://tabill.pages.dev`.
 4. **Google Cloud → Google Auth Platform → Audience**: set the publishing
