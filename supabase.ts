@@ -1,8 +1,16 @@
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const url = import.meta.env.VITE_SUPABASE_URL?.trim();
-const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim();
+/**
+ * Defaults keep cloud sync working even when the build has no `.env` (for
+ * example a CI or Git-connected deployment). The publishable key is designed to
+ * be public — RLS is what protects the data. Set the VITE_ vars to override.
+ */
+const DEFAULT_URL = 'https://gwyqvxqfgauxnungmutg.supabase.co';
+const DEFAULT_ANON_KEY = 'sb_publishable_n1lVbkn7i64IhO0N_G-7Zg_-PIQMKHF';
+
+const url = import.meta.env.VITE_SUPABASE_URL?.trim() || DEFAULT_URL;
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY?.trim() || DEFAULT_ANON_KEY;
 
 /** True when build-time Supabase env vars are present. */
 export const isCloudConfigured = Boolean(url && anonKey);

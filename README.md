@@ -13,15 +13,17 @@ npm run dev                  # http://localhost:3000
 ```
 
 `.env.local` is ignored by git. Only the Supabase **publishable/anon** key belongs
-here — never a secret/service_role key.
+here — never a secret/service_role key. The env vars are optional: if they are
+missing at build time the app falls back to the project's public URL and
+publishable key compiled into `supabase.ts`, so cloud sync still works.
 
 ```
 VITE_SUPABASE_URL=https://<project-ref>.supabase.co
 VITE_SUPABASE_ANON_KEY=sb_publishable_...
 ```
 
-The app works fully offline without cloud env vars; the Profile page simply
-hides the Google sign-in button until sync is configured.
+The app works fully offline; signing in is optional and only adds cloud sync.
+If the env vars are absent the built-in project defaults are used.
 
 ## Supabase setup (one time)
 
