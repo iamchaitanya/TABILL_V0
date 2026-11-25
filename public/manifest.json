@@ -2,14 +2,22 @@
   "name": "TA BILL - Inspector Portal",
   "short_name": "TA BILL",
   "description": "Official Tour Allowance and Inspection Diary for Official Use.",
+  "id": "/",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#0d9488",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/logoo.png",
+      "src": "/logo-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/logo.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
