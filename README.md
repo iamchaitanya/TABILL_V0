@@ -37,8 +37,15 @@ hides the Google sign-in button until sync is configured.
    `https://<project-ref>.supabase.co/auth/v1/callback`.
 3. **Authentication → URL Configuration**: Site URL `https://tabill.pages.dev`,
    redirect allow list `http://localhost:3000,https://tabill.pages.dev`.
-4. Sign in once, then disable **"Allow new users to sign up"** and/or insert your
-   address into `public.allowed_emails`.
+4. **Google Cloud → Google Auth Platform → Audience**: set the publishing
+   status to **In production**. While it is **Testing**, only listed test users
+   can sign in. Add `tabill.pages.dev` as an authorized domain and point the
+   home page / privacy policy links at the deployed site.
+5. Signups are **open**: anyone with a Google account can sign in and gets their
+   own private rows (RLS scopes everything to `auth.uid()`). To lock the app
+   down again, disable **"Allow new users to sign up"** in
+   **Authentication → Sign In / Providers**, and/or insert the allowed addresses
+   into `public.allowed_emails` — the trigger then rejects everyone else.
 
 ## Data model
 
